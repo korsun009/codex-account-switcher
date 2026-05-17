@@ -1,0 +1,21 @@
+<Project Sdk="WixToolset.Sdk/6.0.2">
+  <PropertyGroup>
+    <OutputType>Package</OutputType>
+    <OutputName>CodexAccountSwitcherSetup-x86</OutputName>
+    <InstallerPlatform>x86</InstallerPlatform>
+    <PublishDir>$(MSBuildProjectDirectory)\..\bin\Release\net8.0-windows\win-x86\publish</PublishDir>
+    <AppIcon>$(MSBuildProjectDirectory)\..\Assets\AppIcon.ico</AppIcon>
+    <DefineConstants>PublishDir=$(PublishDir);AppIcon=$(AppIcon)</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="6.0.2" />
+  </ItemGroup>
+
+  <Target Name="PublishAppForInstaller" BeforeTargets="CoreCompile">
+    <MSBuild
+      Projects="$(MSBuildProjectDirectory)\..\codex-account-switcher.csproj"
+      Targets="Publish"
+      Properties="Configuration=Release;RuntimeIdentifier=win-x86;SelfContained=true;PublishSingleFile=true" />
+  </Target>
+</Project>
