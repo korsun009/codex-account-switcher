@@ -1,0 +1,23 @@
+# Build output
+bin/
+obj/
+.vs/
+
+# Local Codex account data and secrets
+auth.json
+**/auth.json
+_account_profiles/
+_account_switcher_backups/
+*.account-switcher.bak
+
+# Local app database and runtime files
+switcher.db
+*.db-shm
+*.db-wal
+*.log
+
+# OS/editor noise
+Thumbs.db
+Desktop.ini
+*.user
+*.suo
