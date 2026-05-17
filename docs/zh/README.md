@@ -21,6 +21,12 @@ Codex Account Switcher 不使用普通 logout 流程。它为每个配置文件�
 
 这样可以快速切换账号，同时保留同一个本地 Codex 工作环境。
 
+## 搜索关键词
+
+如果你通过 Google、GitHub 或其他搜索引擎查找类似工具，可以使用这些关键词：`Codex账号切换器`、`Codex账户切换`、`Codex多账号管理`、`OpenAI账号切换工具`、`Windows Codex账号管理`、`Codex限额查看`、`Codex使用限额`、`Codex account switcher`、`Codex profile switcher`。
+
+简单来说，这是一个 Windows 工具，用于安全切换 Codex 账号、管理多个 Codex 配置文件，并查看已保存配置文件的 5 小时和每周 Codex 限额。
+
 ## 下载
 
 请从 [GitHub Releases](https://github.com/korsun009/codex-account-switcher/releases/latest) 下载最新版本。每个版本提供四个主要文件：

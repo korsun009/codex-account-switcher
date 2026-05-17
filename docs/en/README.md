@@ -21,6 +21,12 @@ Codex Account Switcher does not use the normal logout flow. Instead, it keeps se
 
 This gives you quick account switching while keeping one common Codex workspace.
 
+## Search phrases
+
+If you are searching on Google, GitHub, or another search engine, this project may match: `Codex account switcher`, `Codex profile switcher`, `switch Codex accounts`, `OpenAI account switcher for Codex`, `Codex multi account`, `Codex limits viewer`, `Codex usage limits`, `Windows Codex account manager`, and `safe auth.json switcher`.
+
+In short: this is a Windows utility for safely switching Codex accounts, managing multiple Codex profiles, and viewing 5-hour and weekly Codex limits for saved profiles.
+
 ## Download
 
 Download the latest version from [GitHub Releases](https://github.com/korsun009/codex-account-switcher/releases/latest). Releases provide four main files:

@@ -8,6 +8,14 @@ Codex keeps the current sign-in in `auth.json`. When you sign out in the usual w
 
 That means your chats, projects, MCP servers, plugins, skills, tool settings, and local Codex workspace stay common, while the active account can be changed from a small desktop app.
 
+## Search / Discoverability
+
+This project is also useful for people searching for: Codex account switcher, Codex profile switcher, switch Codex accounts on Windows, OpenAI account switcher for Codex, Codex limits viewer, Codex multi-account manager, and safe Codex `auth.json` switcher.
+
+Russian search phrases: переключатель аккаунтов Codex, смена аккаунта Codex, Codex свитчер, переключение профилей Codex, лимиты Codex, несколько аккаунтов Codex на Windows.
+
+Chinese search phrases: Codex账号切换器, Codex账户切换, Codex多账号管理, OpenAI账号切换工具, Windows Codex账号管理, Codex限额查看.
+
 ## Download
 
 Use the latest release assets from [GitHub Releases](https://github.com/korsun009/codex-account-switcher/releases/latest):
