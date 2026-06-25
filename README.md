@@ -76,6 +76,15 @@ The app includes a Codex limits screen. It checks the 5-hour and weekly usage st
 
 This feature is informational. It does not change limits and does not attempt to work around them.
 
+## Remote API
+
+The app can also run an optional local HTTP API with `CodexAccountSwitcher.exe --remote-api`.
+It exposes fixed operations for status, account switching, limits, Codex process control, selected Windows power actions, and V2RayTun helpers.
+
+The API is designed for local or private-gateway use. It requires a bearer token for every route except `/health`, does not return raw `auth.json` or token values, and should not be exposed directly to the public internet.
+
+See [docs/REMOTE_API.md](docs/REMOTE_API.md) for routes, environment variables, and scheduled-task setup.
+
 ## Interface
 
 - Theme options: automatic, dark, gray, and light.
