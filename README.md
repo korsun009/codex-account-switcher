@@ -93,19 +93,6 @@ See [docs/REMOTE_API.md](docs/REMOTE_API.md) for routes, environment variables, 
 - Language options: Russian, English, and Chinese.
 - Profiles can be added and removed from the Settings screen.
 
-## Release structure
-
-Every release should publish these assets:
-
-- `CodexAccountSwitcherSetup-win-x64.msi`
-- `CodexAccountSwitcherSetup-win-x86.msi`
-- `CodexAccountSwitcher-portable-win-x64.zip`
-- `CodexAccountSwitcher-portable-win-x86.zip`
-- `CodexAccountSwitcher-source-vX.Y.Z.zip`
-- `SHA256SUMS.txt`
-
-See `docs/RELEASE_PROCESS.md` for the update checklist.
-
 ## Build From Source
 
 Requirements:
