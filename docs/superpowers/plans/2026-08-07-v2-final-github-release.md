@@ -85,7 +85,7 @@
 - [x] Put the literal product/category and Windows/Codex keywords in the README title and first paragraph.
 - [x] Add concise feature, security, installation, Telegram, translation, and troubleshooting sections.
 - [x] Add release/build/license/platform badges with stable alt text.
-- [ ] Set a useful repository description and topics such as `codex`, `openai`, `account-switcher`, `electron`, `windows`, `telegram-bot`, `dpapi`, and `remote-control`.
+- [x] Set a useful repository description and topics such as `codex`, `openai`, `account-switcher`, `electron`, `windows`, `telegram-bot`, `dpapi`, and `remote-control`.
 - [x] Verify public README links and release asset links without relying on authenticated browser state.
 
 ### Task 6: Publish and verify GitHub v2.0.0
@@ -96,12 +96,12 @@
 
 - [x] Run .NET, Electron, packaged E2E, updater E2E, Telegram, and secret-audit gates.
 - [x] Confirm no token, `.env`, `auth.json`, profile database, private host, MAC, or personal default account is tracked or packaged.
-- [ ] Commit the complete V2 change set with a release-focused message.
-- [ ] Push `feature/electron-v2` and fast-forward `main` only if remote history is still compatible.
-- [ ] Create annotated tag `v2.0.0` and a non-draft public GitHub release from the prepared release notes.
-- [ ] Upload all assets and verify `releases/latest/download/latest.yml` returns HTTP 200.
-- [ ] Verify the GitHub API reports the expected tag, assets, checksums, topics, and repository description.
-- [ ] Leave an explicit record that artifacts are `NotSigned` until a trusted Code Signing certificate is configured.
+- [x] Commit the complete V2 change set with a release-focused message.
+- [x] Push `feature/electron-v2` and fast-forward `main` only if remote history is still compatible.
+- [x] Create annotated tag `v2.0.0` and a non-draft public GitHub release from the prepared release notes.
+- [x] Upload all assets and verify `releases/latest/download/latest.yml` returns HTTP 200.
+- [x] Verify the GitHub API reports the expected tag, assets, checksums, topics, and repository description.
+- [x] Leave an explicit record that artifacts are `NotSigned` until a trusted Code Signing certificate is configured.
 
 ## Self-review
 
