@@ -1,0 +1,117 @@
+{
+  "name": "codex-account-switcher-desktop",
+  "version": "2.0.0",
+  "description": "Secure Windows account switcher for Codex",
+  "main": "out/main/index.js",
+  "author": "Codex Account Switcher contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/korsun009/codex-account-switcher.git"
+  },
+  "type": "module",
+  "packageManager": "pnpm@11.20.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --pool=forks --maxWorkers=1",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "package:dir": "pnpm build && electron-builder --dir --win --x64 --ia32 --publish never",
+    "package:win": "pnpm build && electron-builder --win nsis msi --x64 --ia32 --publish never"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9",
+    "lucide-react": "1.28.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@tailwindcss/vite": "4.3.3",
+    "@testing-library/jest-dom": "7.0.0",
+    "@testing-library/react": "16.3.2",
+    "@types/node": "24.10.9",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.5",
+    "electron": "43.3.0",
+    "electron-builder": "26.15.3",
+    "electron-vite": "5.0.0",
+    "jsdom": "30.0.1",
+    "tailwindcss": "4.3.3",
+    "typescript": "7.0.2",
+    "vite": "8.2.0",
+    "vitest": "4.1.10"
+  },
+  "build": {
+    "appId": "app.codexaccountswitcher.desktop",
+    "productName": "Codex Account Switcher",
+    "asar": true,
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "korsun009",
+        "repo": "codex-account-switcher",
+        "channel": "latest",
+        "releaseType": "release"
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "../artifacts/backend/${arch}",
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "signtoolOptions": {
+        "signingHashAlgorithms": [
+          "sha256"
+        ],
+        "rfc3161TimeStampServer": "http://timestamp.digicert.com"
+      },
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        },
+        {
+          "target": "msi",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ],
+      "artifactName": "Codex-Account-Switcher-${version}-${arch}-Setup.${ext}"
+    },
+    "nsis": {
+      "guid": "46496e38-c773-566c-b0c4-a8505306ddae",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
+    }
+  }
+}

@@ -22,7 +22,24 @@ public sealed class CodexUsageService
 
     public async Task<CodexUsageResult> FetchAsync(string authJsonPath, CancellationToken cancellationToken)
     {
-        var auth = ReadAuth(authJsonPath);
+        if (!File.Exists(authJsonPath))
+        {
+            return CodexUsageResult.Failed("В выбранной папке Codex Home нет auth.json для активного входа.");
+        }
+
+        try
+        {
+            return await FetchAsync(await File.ReadAllBytesAsync(authJsonPath, cancellationToken), cancellationToken);
+        }
+        catch (IOException ex)
+        {
+            return CodexUsageResult.Failed($"Не удалось прочитать auth.json: {ex.Message}");
+        }
+    }
+
+    public async Task<CodexUsageResult> FetchAsync(ReadOnlyMemory<byte> authDocument, CancellationToken cancellationToken)
+    {
+        var auth = ReadAuth(authDocument.Span);
         if (!auth.Success)
         {
             return CodexUsageResult.Failed(auth.ErrorMessage);
@@ -55,16 +72,11 @@ public sealed class CodexUsageService
         return CodexUsageResult.Succeeded(windows.FiveHour, windows.Weekly, DateTimeOffset.Now);
     }
 
-    private static AuthReadResult ReadAuth(string authJsonPath)
+    private static AuthReadResult ReadAuth(ReadOnlySpan<byte> authDocument)
     {
-        if (!File.Exists(authJsonPath))
-        {
-            return AuthReadResult.Failed("В выбранной папке Codex Home нет auth.json для активного входа.");
-        }
-
         try
         {
-            using var document = JsonDocument.Parse(File.ReadAllText(authJsonPath));
+            using var document = JsonDocument.Parse(authDocument.ToArray());
             var root = document.RootElement;
             var tokens = root.TryGetProperty("tokens", out var tokenNode) ? tokenNode : root;
             var accessToken = GetString(tokens, "access_token") ?? GetString(root, "access_token");
@@ -81,10 +93,6 @@ public sealed class CodexUsageService
         {
             return AuthReadResult.Failed("auth.json повреждён или имеет неожиданный формат.");
         }
-        catch (IOException ex)
-        {
-            return AuthReadResult.Failed($"Не удалось прочитать auth.json: {ex.Message}");
-        }
     }
 
     private static (CodexUsageWindow? FiveHour, CodexUsageWindow? Weekly) ParseUsageWindows(JsonElement root)
@@ -92,8 +100,8 @@ public sealed class CodexUsageService
         var candidates = new List<CandidateWindow>();
         CollectCandidates(root, "", candidates);
 
-        var fiveHour = PickWindow(candidates, "five_hour", "five-hour", "primary_window", "primary");
-        var weekly = PickWindow(candidates, "weekly", "week", "secondary_window", "secondary");
+        var fiveHour = PickWindow(candidates, TimeSpan.FromHours(5), "five_hour", "five-hour", "5_hour", "5-hour");
+        var weekly = PickWindow(candidates, TimeSpan.FromDays(7), "weekly", "week");
 
         return (fiveHour, weekly);
     }
@@ -104,13 +112,19 @@ public sealed class CodexUsageService
         {
             case JsonValueKind.Object:
                 var percentLeft = GetNumber(element, "percent_left")
+                    ?? GetNumber(element, "percentLeft")
                     ?? GetNumber(element, "remaining_percent")
-                    ?? ComplementPercent(GetNumber(element, "used_percent"));
+                    ?? GetNumber(element, "remainingPercent")
+                    ?? ComplementPercent(GetNumber(element, "used_percent") ?? GetNumber(element, "usedPercent"));
                 var resetAt = GetResetAt(element);
+                var duration = GetWindowDuration(element);
+                var label = GetString(element, "limit_name")
+                    ?? GetString(element, "limitName")
+                    ?? GetString(element, "label");
 
                 if (percentLeft is not null || resetAt is not null)
                 {
-                    candidates.Add(new CandidateWindow(path, percentLeft, resetAt));
+                    candidates.Add(new CandidateWindow(path, label, percentLeft, resetAt, duration));
                 }
 
                 foreach (var property in element.EnumerateObject())
@@ -130,10 +144,24 @@ public sealed class CodexUsageService
         }
     }
 
-    private static CodexUsageWindow? PickWindow(IReadOnlyList<CandidateWindow> candidates, params string[] hints)
+    private static CodexUsageWindow? PickWindow(
+        IReadOnlyList<CandidateWindow> candidates,
+        TimeSpan expectedDuration,
+        params string[] hints)
     {
-        var match = candidates.FirstOrDefault(candidate =>
-            hints.Any(hint => candidate.Path.Contains(hint, StringComparison.OrdinalIgnoreCase)));
+        var expectedSeconds = expectedDuration.TotalSeconds;
+        var match = candidates
+            .Where(candidate => candidate.Duration is not null &&
+                Math.Abs(candidate.Duration.Value.TotalSeconds - expectedSeconds) <= 60)
+            .OrderByDescending(Completeness)
+            .FirstOrDefault();
+
+        match ??= candidates
+            .Where(candidate => candidate.Duration is null && hints.Any(hint =>
+                candidate.Path.Contains(hint, StringComparison.OrdinalIgnoreCase) ||
+                (candidate.Label?.Contains(hint, StringComparison.OrdinalIgnoreCase) ?? false)))
+            .OrderByDescending(Completeness)
+            .FirstOrDefault();
         if (match is null)
         {
             return null;
@@ -142,6 +170,11 @@ public sealed class CodexUsageService
         return match.PercentLeft is null && match.ResetAt is null
             ? null
             : new CodexUsageWindow(match.PercentLeft, match.ResetAt);
+    }
+
+    private static int Completeness(CandidateWindow candidate)
+    {
+        return (candidate.PercentLeft is null ? 0 : 1) + (candidate.ResetAt is null ? 0 : 1);
     }
 
     private static string JoinPath(string path, string name)
@@ -180,7 +213,7 @@ public sealed class CodexUsageService
 
     private static DateTimeOffset? GetResetAt(JsonElement element)
     {
-        foreach (var propertyName in new[] { "reset_at", "resets_at", "next_reset_at", "reset_time" })
+        foreach (var propertyName in new[] { "reset_at", "resets_at", "next_reset_at", "reset_time", "resetAt", "resetsAt" })
         {
             if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(propertyName, out var value))
             {
@@ -203,7 +236,28 @@ public sealed class CodexUsageService
         return null;
     }
 
-    private sealed record CandidateWindow(string Path, double? PercentLeft, DateTimeOffset? ResetAt);
+    private static TimeSpan? GetWindowDuration(JsonElement element)
+    {
+        var seconds = GetNumber(element, "limit_window_seconds")
+            ?? GetNumber(element, "window_duration_seconds")
+            ?? GetNumber(element, "windowDurationSeconds");
+        if (seconds is > 0)
+        {
+            return TimeSpan.FromSeconds(seconds.Value);
+        }
+
+        var minutes = GetNumber(element, "limit_window_minutes")
+            ?? GetNumber(element, "window_duration_mins")
+            ?? GetNumber(element, "windowDurationMins");
+        return minutes is > 0 ? TimeSpan.FromMinutes(minutes.Value) : null;
+    }
+
+    private sealed record CandidateWindow(
+        string Path,
+        string? Label,
+        double? PercentLeft,
+        DateTimeOffset? ResetAt,
+        TimeSpan? Duration);
 
     private sealed record AuthReadResult(bool Success, string AccessToken, string AccountId, string ErrorMessage)
     {

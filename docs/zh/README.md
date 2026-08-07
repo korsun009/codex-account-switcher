@@ -1,124 +1,42 @@
-# Codex Account Switcher
+# Windows Codex Account Switcher
 
-## 这是什么
+[Main README](../../README.md) | [Русский](../ru/README.md) | [English](../en/README.md)
 
-Codex Account Switcher 是一个本地 Windows 工具，用来在同一台电脑上安全切换多个 Codex/OpenAI 账号。它适合需要多个 Codex 登录状态，但不想反复退出、重新登录、破坏 refresh token 或重新配置本地 Codex 环境的用户。
+Codex Account Switcher 是一款开源 Windows 桌面应用，用于安全切换多个 OpenAI Codex 账号、查看 5 小时和每周限额，并可通过 Telegram 远程控制。聊天、项目、MCP、插件、skills 和设置保持共享，只切换当前登录状态。
 
-程序会保持项目、聊天、MCP 服务器、插件、skills 和工具设置共享。真正被切换的只是当前 Codex 登录状态。
+## 下载 2.0.0
 
-适合以下情况：
+请从 [GitHub Releases](https://github.com/korsun009/codex-account-switcher/releases/latest) 下载，并使用 `SHA256SUMS.txt` 验证文件。
 
-- 同一台电脑上有工作账号和个人账号；
-- 不同项目使用不同 Codex 账号；
-- 有一个专门用于测试的账号；
-- 多个账号需要共享同一套本地 Codex 配置。
+| Windows | 自动更新安装包 | 架构安装包 | MSI | 便携版 |
+| --- | --- | --- | --- | --- |
+| 10/11 x64 | `Codex-Account-Switcher-2.0.0-Setup.exe` | `Codex-Account-Switcher-2.0.0-x64-Setup.exe` | `Codex-Account-Switcher-2.0.0-x64-Setup.msi` | `Codex-Account-Switcher-2.0.0-x64-Portable.zip` |
+| 10/11 x86 | `Codex-Account-Switcher-2.0.0-Setup.exe` | `Codex-Account-Switcher-2.0.0-ia32-Setup.exe` | `Codex-Account-Switcher-2.0.0-ia32-Setup.msi` | `Codex-Account-Switcher-2.0.0-ia32-Portable.zip` |
 
-## 解决的问题
+`ia32` 表示 32 位 x86 Windows。构建包已包含运行环境。不支持 macOS、Linux、Windows 8 和 8.1。
 
-Codex 会把当前登录状态保存在 `auth.json` 文件中。普通的 Codex logout 可能会撤销 refresh token。之后保存的登录可能失效，需要重新手动登录。
+> v2.0.0 尚未使用 Authenticode 证书签名。Windows 可能显示未知发布者或 SmartScreen 警告。SHA-256 校验值只能验证完整性，不能替代可信发布者签名。
 
-Codex Account Switcher 不使用普通 logout 流程。它为每个配置文件保存独立的本地登录快照，并且只切换 `auth.json`。`.codex` 中的其他内容保持共享。
+## 主要功能
 
-这样可以快速切换账号，同时保留同一个本地 Codex 工作环境。
+- 在图形界面中添加、删除和切换 Codex 配置文件。
+- 使用 Windows DPAPI CurrentUser 加密保存的登录和备份。
+- 在替换 `auth.json` 前进行验证、备份和回滚保护。
+- 显示各配置文件的 5 小时和每周 Codex 限额，不显示 token。
+- 用户分别确认检查、下载和安装更新。
+- 俄语、英语、中文界面和四种主题。
+- 可选的认证 Remote API 和 Telegram 按钮控制。
 
-## 搜索关键词
+## 使用与安全
 
-如果你通过 Google、GitHub 或其他搜索引擎查找类似工具，可以使用这些关键词：`Codex账号切换器`、`Codex账户切换`、`Codex多账号管理`、`OpenAI账号切换工具`、`Windows Codex账号管理`、`Codex限额查看`、`Codex使用限额`、`Codex account switcher`、`Codex profile switcher`。
+安装推荐的 NSIS EXE、MSI，或解压便携版。通过应用向导创建配置文件，打开 Codex 手动登录，然后返回应用保存。不要在已保存配置文件之间使用 Codex 普通 logout，因为它可能撤销 refresh token。
 
-简单来说，这是一个 Windows 工具，用于安全切换 Codex 账号、管理多个 Codex 配置文件，并查看已保存配置文件的 5 小时和每周 Codex 限额。
+应用只切换当前 `auth.json`。保存的登录以 `auth.dpapi` 加密，并绑定当前 Windows 用户。它不能作为账号凭据复制到另一台电脑或另一个 Windows 用户。同步后可能看到配置文件名称，但必须在新电脑上重新保存登录。
 
-## 下载
+## Telegram 与社区翻译
 
-请从 [GitHub Releases](https://github.com/korsun009/codex-account-switcher/releases/latest) 下载最新版本。每个版本提供四个主要文件：
+请查看[图形界面和 Telegram 设置](../TELEGRAM_GUI_SETUP.md)、[Remote API](../REMOTE_API.md)以及独立部署仓库 [codex-telegram-remote](https://github.com/korsun009/codex-telegram-remote)。
 
-| 系统 | 安装包 | 便携版 |
-| --- | --- | --- |
-| Windows 10/11 x64 | `CodexAccountSwitcherSetup-win-x64.msi` | `CodexAccountSwitcher-portable-win-x64.zip` |
-| Windows 10/11 x86 | `CodexAccountSwitcherSetup-win-x86.msi` | `CodexAccountSwitcher-portable-win-x86.zip` |
+欢迎社区翻译。Fork 本仓库，编辑 [`desktop/src/renderer/src/locales/translations.json`](../../desktop/src/renderer/src/locales/translations.json)，保持所有 key 和 `{{placeholders}}` 一致，运行验证，然后提交 pull request。详细说明见 [TRANSLATIONS.md](../TRANSLATIONS.md)。
 
-不支持 Windows 8/8.1。用户不需要单独安装 .NET。
-
-## 程序功能
-
-- 首次启动时自动查找 `.codex` 文件夹。
-- 如果自动查找失败，会要求用户手动选择文件夹。
-- 可以在程序界面中添加新的 Codex 配置文件。
-- 使用向导流程：创建配置文件、打开 Codex、手动登录、保存登录状态。
-- 一键切换当前活动配置文件。
-- 显示当前正在使用的账号。
-- 显示所有已保存配置文件的 Codex 限额。
-- 使用本地 SQLite 数据库存储配置文件列表。
-- 在替换当前登录状态之前创建备份。
-- 支持俄语、英语和中文界面。
-- 支持自动、深色、灰色和浅色主题。
-- 自动模式会跟随 Windows 应用主题。
-
-## 程序不会做什么
-
-- 不会把 token 或账号数据上传到服务器。
-- 不会把 `auth.json` 内容写入 SQLite 数据库。
-- 不会按账号隔离项目、聊天、MCP、插件、skills 或工具。
-- 不会绕过 OpenAI 或 Codex 的使用限额。
-- 不会更改订阅、账号权限或访问规则。
-- 不支持 Windows 8/8.1。
-
-## 如何使用
-
-1. 安装 MSI，或解压 portable zip。
-2. 启动程序。
-3. 首次启动时，程序会自动查找 `.codex`；如果找不到，请手动选择文件夹。
-4. 点击 `添加账号`。
-5. 输入清晰的配置文件名称。
-6. 点击 `打开 Codex`，然后在 Codex 中手动登录需要的账号。
-7. 回到程序并点击 `保存登录`。
-8. 在配置文件卡片上点击 `切换` 来切换账号。
-
-## 添加新账号
-
-添加账号通过程序内的向导完成。用户仍然控制整个过程，但不需要记住多个工具按钮的顺序。
-
-1. 打开 `添加账号`。
-2. 输入配置文件名称，例如 `工作 Codex` 或 `个人账号`。
-3. 点击 `创建配置文件`。
-4. 点击 `打开 Codex`。
-5. 在 Codex 中手动登录需要的账号。
-6. 回到 Codex Account Switcher。
-7. 点击 `保存登录`。
-
-之后，该配置文件会出现在列表中，可以用于切换。
-
-## 安全模型
-
-- 只切换 `auth.json`。
-- 项目、聊天、MCP、插件和工具保持共享。
-- `auth.json` 内容不会保存到 SQLite 数据库。
-- 替换当前登录前会创建备份。
-- 令牌不会显示在界面或日志中。
-
-重要：保存多个账号时，不要使用 Codex 的普通 logout 按钮。普通退出可能会撤销 refresh token，并导致已保存的登录失效。
-
-## Codex 限额
-
-`Codex 限额` 页面会显示所有已保存配置文件的 5 小时和每周限额。程序只从每个本地配置文件的登录快照中读取必要字段，请求 usage endpoint，并且不会把 bearer token 保存到数据库。
-
-这个功能只用于显示信息。它不会增加限额，也不会尝试绕过限额。
-
-## 安装版和便携版
-
-程序有两种使用方式：
-
-- MSI 安装包：像普通 Windows 程序一样安装，可以通过 Windows 设置或 uninstall 文件卸载。
-- Portable zip：解压文件夹后直接运行，不需要安装。
-
-两种方式都提供 x64 和 x86 版本。面向用户的更新应当在四个发布版本中全部验证。
-
-## 从源码构建
-
-需要 Windows 10/11、.NET 8 SDK，以及安装包项目所需的 WiX Toolset 支持。
-
-```powershell
-dotnet test codex-account-switcher\CodexAccountSwitcher.sln
-.\scripts\build-release.ps1 -Version v1.0.1
-```
-
-该脚本会生成 portable x64、portable x86、MSI x64、MSI x86、源码压缩包和 `SHA256SUMS.txt`。
+构建和贡献说明见 [Main README](../../README.md)、[CONTRIBUTING.md](../../CONTRIBUTING.md) 和 [2.0.0 release notes](../RELEASE_NOTES_2.0.0.md)。

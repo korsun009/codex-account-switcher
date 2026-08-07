@@ -2,6 +2,17 @@
 bin/
 obj/
 .vs/
+node_modules/
+desktop/out/
+desktop/release/
+artifacts/
+playwright-report/
+test-results/
+*.map
+.venv/
+__pycache__/
+.pytest_cache/
+.env
 
 # Local Codex account data and secrets
 auth.json

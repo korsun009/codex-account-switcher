@@ -3,16 +3,26 @@ namespace CodexAccountSwitcher.Core;
 public static class PathSafety
 {
     private static readonly char[] InvalidProfileCharacters = Path.GetInvalidFileNameChars();
+    private static readonly HashSet<string> ReservedWindowsNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+    };
 
     public static void EnsureSafeProfileName(string profileName)
     {
         if (string.IsNullOrWhiteSpace(profileName) ||
-            profileName.Length > 48 ||
+            profileName.Length > 200 ||
+            Path.IsPathRooted(profileName) ||
             profileName is "." or ".." ||
             profileName.Any(character => InvalidProfileCharacters.Contains(character) || character is '/' or '\\') ||
-            profileName.Any(character => !(char.IsLetterOrDigit(character) || character is '-' or '_' or '.')))
+            profileName.Any(char.IsControl) ||
+            profileName.EndsWith('.') ||
+            profileName.EndsWith(' ') ||
+            ReservedWindowsNames.Contains(profileName.Split('.')[0].TrimEnd(' ', '.')))
         {
-            throw new InvalidOperationException("Имя профиля может содержать только буквы, цифры, дефис, точку и подчёркивание.");
+            throw new InvalidOperationException("Внутренний идентификатор профиля небезопасен для файловой системы Windows.");
         }
     }
 

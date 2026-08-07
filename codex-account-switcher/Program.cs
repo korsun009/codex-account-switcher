@@ -1,5 +1,7 @@
 using CodexAccountSwitcher.Core;
+using CodexAccountSwitcher.DesktopBridge;
 using CodexAccountSwitcher.Remote;
+using System.Text;
 
 namespace CodexAccountSwitcher;
 
@@ -8,6 +10,12 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        if (args.Any(arg => string.Equals(arg, "--desktop-bridge", StringComparison.OrdinalIgnoreCase)))
+        {
+            RunDesktopBridgeAsync().GetAwaiter().GetResult();
+            return;
+        }
+
         if (args.Any(arg => string.Equals(arg, "--remote-api", StringComparison.OrdinalIgnoreCase)))
         {
             RunRemoteApiAsync().GetAwaiter().GetResult();
@@ -27,6 +35,24 @@ internal static class Program
         var layout = CodexHomeLayout.FromHome(codexHome);
         var switcher = AccountSwitcherService.CreateDefault(layout, database);
         Application.Run(new MainForm(layout, switcher, database));
+    }
+
+    private static async Task RunDesktopBridgeAsync()
+    {
+        var database = SqliteAppDatabase.CreateDefault();
+        var server = new DesktopBridgeServer(database);
+        var utf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+        using var input = new StreamReader(
+            Console.OpenStandardInput(), utf8, detectEncodingFromByteOrderMarks: false, bufferSize: 4096, leaveOpen: true);
+        using var output = new StreamWriter(
+            Console.OpenStandardOutput(), utf8, bufferSize: 4096, leaveOpen: true) { AutoFlush = true };
+        using var shutdown = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, eventArgs) =>
+        {
+            eventArgs.Cancel = true;
+            shutdown.Cancel();
+        };
+        await server.RunAsync(input, output, shutdown.Token);
     }
 
     private static async Task RunRemoteApiAsync()

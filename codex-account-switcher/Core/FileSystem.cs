@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 
 namespace CodexAccountSwitcher.Core;
 
@@ -78,11 +79,11 @@ public sealed class RealFileSystem : IFileSystem
         }
 
         var tempPath = path + ".tmp-" + Guid.NewGuid().ToString("N");
-        File.WriteAllText(tempPath, text);
+        File.WriteAllText(tempPath, text, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         ReplaceOrMove(tempPath, path);
     }
 
-    public string ReadAllText(string path) => File.ReadAllText(path);
+    public string ReadAllText(string path) => File.ReadAllText(path, Encoding.UTF8);
 
     public string ComputeSha256(string path)
     {

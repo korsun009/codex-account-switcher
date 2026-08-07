@@ -1,4 +1,4 @@
-using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
@@ -7,24 +7,27 @@ namespace CodexAccountSwitcher.Core;
 public sealed class AccountSwitcherService
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-    private static readonly ProfileDefinition[] DefaultProfiles =
-    [
-        new("acc1", "korsuntop"),
-        new("acc2", "korsunfin009"),
-        new("acc3", "tylerl")
-    ];
 
     private readonly CodexHomeLayout _layout;
     private readonly IFileSystem _fileSystem;
     private readonly ICodexProcessService _processService;
     private readonly IProfileStore? _profileStore;
+    private readonly ISecretProtector _secretProtector;
+    private readonly ProfileCredentialStore _credentialStore;
 
-    public AccountSwitcherService(CodexHomeLayout layout, IFileSystem fileSystem, ICodexProcessService processService, IProfileStore? profileStore = null)
+    public AccountSwitcherService(
+        CodexHomeLayout layout,
+        IFileSystem fileSystem,
+        ICodexProcessService processService,
+        IProfileStore? profileStore = null,
+        ISecretProtector? secretProtector = null)
     {
         _layout = layout;
         _fileSystem = fileSystem;
         _processService = processService;
         _profileStore = profileStore;
+        _secretProtector = secretProtector ?? new WindowsDpapiSecretProtector();
+        _credentialStore = new ProfileCredentialStore(layout, fileSystem, _secretProtector);
     }
 
     public static AccountSwitcherService CreateDefault(CodexHomeLayout layout, IProfileStore? profileStore = null)
@@ -46,7 +49,7 @@ public sealed class AccountSwitcherService
             profile.Name,
             profile.DisplayName,
             _layout.ProfileDirectory(profile.Name),
-            _fileSystem.FileExists(_layout.ProfileAuthPath(profile.Name)))).ToArray();
+            _credentialStore.HasCredentials(profile.Name))).ToArray();
     }
 
     public AccountProfile AddProfile(string displayName)
@@ -62,6 +65,20 @@ public sealed class AccountSwitcherService
         return new AccountProfile(profile.Name, profile.DisplayName, _layout.ProfileDirectory(profile.Name), false);
     }
 
+    public bool HasValidCredentials(string profileName)
+    {
+        try
+        {
+            EnsureKnownProfile(profileName, LoadProfileDefinitions());
+            _credentialStore.Read(profileName);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public SwitchResult DeleteProfile(string profileName)
     {
         EnsureRuntimeDirectories();
@@ -73,22 +90,18 @@ public sealed class AccountSwitcherService
             return new SwitchResult(false, null, activeProfileError, null);
         }
 
-        if (string.Equals(activeProfile, profile.Name, StringComparison.OrdinalIgnoreCase))
-        {
-            return new SwitchResult(false, activeProfile, "Нельзя удалить активный профиль. Сначала переключитесь на другой профиль.", null);
-        }
-
-        if (profiles.Count <= 1)
-        {
-            return new SwitchResult(false, activeProfile, "Нельзя удалить последний профиль.", null);
-        }
-
         var profileDirectory = _layout.ProfileDirectory(profile.Name);
         PathSafety.EnsurePathInside(profileDirectory, _layout.ProfilesDirectory);
+        var deletingActiveProfile = string.Equals(activeProfile, profile.Name, StringComparison.OrdinalIgnoreCase);
+        if (deletingActiveProfile)
+        {
+            ClearActiveProfile();
+        }
+
         profiles.RemoveAll(item => string.Equals(item.Name, profile.Name, StringComparison.OrdinalIgnoreCase));
         SaveProfileDefinitions(profiles);
         _fileSystem.DeleteDirectory(profileDirectory, recursive: true);
-        return new SwitchResult(true, activeProfile, $"Профиль «{profile.DisplayName}» удалён.", null);
+        return new SwitchResult(true, deletingActiveProfile ? null : activeProfile, $"Профиль «{profile.DisplayName}» удалён.", null);
     }
 
     public async Task<SwitchResult> SwitchToAsync(string profileName, CancellationToken cancellationToken)
@@ -98,10 +111,19 @@ public sealed class AccountSwitcherService
         var profiles = LoadProfileDefinitions();
         var profile = EnsureKnownProfile(profileName, profiles);
 
-        var targetAuth = _layout.ProfileAuthPath(profile.Name);
-        if (!_fileSystem.FileExists(targetAuth))
+        if (!_credentialStore.HasCredentials(profile.Name))
         {
             return new SwitchResult(false, ReadActiveProfile(), $"Для профиля «{profile.DisplayName}» ещё нет auth.json. Сначала сохраните текущий вход в этот профиль.", null);
+        }
+
+        byte[] targetBytes;
+        try
+        {
+            targetBytes = _credentialStore.Read(profile.Name);
+        }
+        catch (Exception ex)
+        {
+            return new SwitchResult(false, ReadActiveProfile(), $"Сохраненный вход профиля не прошел проверку: {ex.Message}", null);
         }
 
         var previousProfile = ReadValidatedActiveProfile(out var activeProfileError);
@@ -110,21 +132,53 @@ public sealed class AccountSwitcherService
             return new SwitchResult(false, null, activeProfileError, null);
         }
 
-        await _processService.StopCodexAsync(TimeSpan.FromSeconds(12), cancellationToken);
-
-        if (!string.IsNullOrWhiteSpace(previousProfile) && _fileSystem.FileExists(_layout.AuthJsonPath))
+        byte[]? previousAuth = null;
+        byte[]? previousMarker = null;
+        string? backupDirectory = null;
+        var stopped = false;
+        try
         {
-            _fileSystem.CopyFile(_layout.AuthJsonPath, _layout.ProfileAuthPath(previousProfile), overwrite: true);
+            await _processService.StopCodexAsync(TimeSpan.FromSeconds(12), cancellationToken);
+            stopped = true;
+            if (_fileSystem.FileExists(_layout.AuthJsonPath))
+            {
+                previousAuth = _fileSystem.ReadAllBytes(_layout.AuthJsonPath);
+                AuthDocumentValidator.Validate(previousAuth);
+            }
+            if (_fileSystem.FileExists(_layout.ActiveProfilePath))
+            {
+                previousMarker = _fileSystem.ReadAllBytes(_layout.ActiveProfilePath);
+            }
+            if (!string.IsNullOrWhiteSpace(previousProfile) && previousAuth is not null)
+            {
+                _credentialStore.Write(previousProfile, previousAuth);
+            }
+
+            backupDirectory = await CreateAccountFileBackupAsync(cancellationToken);
+            _fileSystem.WriteAllBytesAtomic(_layout.AuthJsonPath, targetBytes);
+            AuthDocumentValidator.Validate(_fileSystem.ReadAllBytes(_layout.AuthJsonPath));
+            WriteActiveProfile(profile.Name);
+            await _processService.LaunchCodexAsync(cancellationToken);
+
+            return new SwitchResult(true, profile.Name, $"Переключено на «{profile.DisplayName}». Резервная копия: {backupDirectory}", backupDirectory);
         }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            if (stopped)
+            {
+                RestoreSwitchState(previousAuth, previousMarker);
+                try
+                {
+                    await _processService.LaunchCodexAsync(cancellationToken);
+                }
+                catch
+                {
+                    // The rollback result below remains actionable even if Codex needs a manual start.
+                }
+            }
 
-        var backupDirectory = await CreateAccountFileBackupAsync(cancellationToken);
-        var targetBytes = _fileSystem.ReadAllBytes(targetAuth);
-        _fileSystem.WriteAllBytesAtomic(_layout.AuthJsonPath, targetBytes);
-        WriteActiveProfile(profile.Name);
-
-        await _processService.LaunchCodexAsync(cancellationToken);
-
-        return new SwitchResult(true, profile.Name, $"Переключено на «{profile.DisplayName}». Резервная копия: {backupDirectory}", backupDirectory);
+            return new SwitchResult(false, previousProfile, $"Переключение отменено, предыдущий вход восстановлен: {ex.Message}", backupDirectory);
+        }
     }
 
     public async Task<SwitchResult> CaptureCurrentAuthAsProfileAsync(string profileName, CancellationToken cancellationToken)
@@ -139,9 +193,12 @@ public sealed class AccountSwitcherService
         }
 
         await _processService.StopCodexAsync(TimeSpan.FromSeconds(12), cancellationToken);
+        var authDocument = _fileSystem.ReadAllBytes(_layout.AuthJsonPath);
+        AuthDocumentValidator.Validate(authDocument);
         var backupDirectory = await CreateAccountFileBackupAsync(cancellationToken);
-        _fileSystem.CopyFile(_layout.AuthJsonPath, _layout.ProfileAuthPath(profile.Name), overwrite: true);
+        _credentialStore.Write(profile.Name, authDocument);
         WriteActiveProfile(profile.Name);
+        await _processService.LaunchCodexAsync(cancellationToken);
 
         return new SwitchResult(true, profile.Name, $"Текущий auth.json сохранён как «{profile.DisplayName}». Резервная копия: {backupDirectory}", backupDirectory);
     }
@@ -161,7 +218,7 @@ public sealed class AccountSwitcherService
 
         if (!string.IsNullOrWhiteSpace(activeProfile) && _fileSystem.FileExists(_layout.AuthJsonPath))
         {
-            _fileSystem.CopyFile(_layout.AuthJsonPath, _layout.ProfileAuthPath(activeProfile), overwrite: true);
+            _credentialStore.Write(activeProfile, _fileSystem.ReadAllBytes(_layout.AuthJsonPath));
         }
 
         var backupDirectory = await CreateAccountFileBackupAsync(cancellationToken);
@@ -185,14 +242,18 @@ public sealed class AccountSwitcherService
 
         if (_fileSystem.FileExists(_layout.AuthJsonPath))
         {
-            _fileSystem.CopyFile(_layout.AuthJsonPath, Path.Combine(backupDirectory, "auth.json"), overwrite: false);
+            var authDocument = _fileSystem.ReadAllBytes(_layout.AuthJsonPath);
+            AuthDocumentValidator.Validate(authDocument);
+            _fileSystem.WriteAllBytesAtomic(
+                Path.Combine(backupDirectory, "auth.dpapi"),
+                _secretProtector.Protect(authDocument));
         }
 
         var manifest = new
         {
             createdUtc = DateTimeOffset.UtcNow,
             files = _fileSystem.FileExists(_layout.AuthJsonPath)
-                ? new[] { new { relativePath = "auth.json", sha256 = _fileSystem.ComputeSha256(_layout.AuthJsonPath) } }
+                ? new[] { new { relativePath = "auth.dpapi", plaintextSha256 = _fileSystem.ComputeSha256(_layout.AuthJsonPath) } }
                 : []
         };
         _fileSystem.WriteAllTextAtomic(Path.Combine(backupDirectory, "manifest.json"), JsonSerializer.Serialize(manifest, JsonOptions));
@@ -201,7 +262,6 @@ public sealed class AccountSwitcherService
 
     public async Task<SwitchResult> RestoreLatestAuthBackupAsync(CancellationToken cancellationToken)
     {
-        await _processService.StopCodexAsync(TimeSpan.FromSeconds(12), cancellationToken);
         var latest = _fileSystem.EnumerateBackupDirectories(_layout.BackupsDirectory).FirstOrDefault();
         if (latest is null)
         {
@@ -211,18 +271,81 @@ public sealed class AccountSwitcherService
         return await RestoreAuthBackupAsync(latest, cancellationToken);
     }
 
-    public Task<SwitchResult> RestoreAuthBackupAsync(string backupDirectory, CancellationToken cancellationToken)
+    public bool VerifyAuthBackup(string backupDirectory)
+    {
+        try
+        {
+            PathSafety.EnsurePathInside(backupDirectory, _layout.BackupsDirectory);
+            var manifestPath = Path.Combine(backupDirectory, "manifest.json");
+            if (!_fileSystem.FileExists(manifestPath))
+            {
+                return false;
+            }
+
+            using var manifest = JsonDocument.Parse(_fileSystem.ReadAllText(manifestPath));
+            if (!manifest.RootElement.TryGetProperty("files", out var files) || files.ValueKind != JsonValueKind.Array)
+            {
+                return false;
+            }
+
+            var entry = files.EnumerateArray().FirstOrDefault();
+            if (entry.ValueKind != JsonValueKind.Object
+                || !entry.TryGetProperty("relativePath", out var relativePathNode)
+                || !entry.TryGetProperty("plaintextSha256", out var hashNode))
+            {
+                return false;
+            }
+
+            var relativePath = relativePathNode.GetString();
+            var expectedHash = hashNode.GetString();
+            if (relativePath is not ("auth.dpapi" or "auth.json") || string.IsNullOrWhiteSpace(expectedHash))
+            {
+                return false;
+            }
+
+            var credentialPath = Path.Combine(backupDirectory, relativePath);
+            PathSafety.EnsurePathInside(credentialPath, backupDirectory);
+            if (!_fileSystem.FileExists(credentialPath))
+            {
+                return false;
+            }
+
+            var authDocument = relativePath == "auth.dpapi"
+                ? _secretProtector.Unprotect(_fileSystem.ReadAllBytes(credentialPath))
+                : _fileSystem.ReadAllBytes(credentialPath);
+            AuthDocumentValidator.Validate(authDocument);
+            var actualHash = Convert.ToHexString(SHA256.HashData(authDocument));
+            return string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<SwitchResult> RestoreAuthBackupAsync(string backupDirectory, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         PathSafety.EnsurePathInside(backupDirectory, _layout.BackupsDirectory);
-        var authBackup = Path.Combine(backupDirectory, "auth.json");
-        if (!_fileSystem.FileExists(authBackup))
+        if (!VerifyAuthBackup(backupDirectory))
         {
-            return Task.FromResult(new SwitchResult(false, ReadActiveProfile(), $"В резервной копии нет auth.json: {backupDirectory}", backupDirectory));
+            return new SwitchResult(false, ReadActiveProfile(), $"Резервная копия не прошла проверку целостности: {backupDirectory}", backupDirectory);
+        }
+        var encryptedBackup = Path.Combine(backupDirectory, "auth.dpapi");
+        var legacyBackup = Path.Combine(backupDirectory, "auth.json");
+        if (!_fileSystem.FileExists(encryptedBackup) && !_fileSystem.FileExists(legacyBackup))
+        {
+            return new SwitchResult(false, ReadActiveProfile(), $"В резервной копии нет данных входа: {backupDirectory}", backupDirectory);
         }
 
-        _fileSystem.CopyFile(authBackup, _layout.AuthJsonPath, overwrite: true);
-        return Task.FromResult(new SwitchResult(true, ReadActiveProfile(), $"auth.json восстановлен из {backupDirectory}", backupDirectory));
+        var authDocument = _fileSystem.FileExists(encryptedBackup)
+            ? _secretProtector.Unprotect(_fileSystem.ReadAllBytes(encryptedBackup))
+            : _fileSystem.ReadAllBytes(legacyBackup);
+        AuthDocumentValidator.Validate(authDocument);
+        await _processService.StopCodexAsync(TimeSpan.FromSeconds(12), cancellationToken);
+        _fileSystem.WriteAllBytesAtomic(_layout.AuthJsonPath, authDocument);
+        await _processService.LaunchCodexAsync(cancellationToken);
+        return new SwitchResult(true, ReadActiveProfile(), $"auth.json восстановлен из {backupDirectory}", backupDirectory);
     }
 
     public Task<string> WriteInventoryReportAsync(CancellationToken cancellationToken)
@@ -252,9 +375,15 @@ public sealed class AccountSwitcherService
             return Task.FromResult("В config.toml уже есть cli_auth_credentials_store с другим значением. Ничего не изменено.");
         }
 
-        _fileSystem.CopyFile(_layout.ConfigTomlPath, _layout.ConfigTomlPath + ".account-switcher.bak", overwrite: true);
+        if (_fileSystem.FileExists(_layout.ConfigTomlPath))
+        {
+            _fileSystem.CopyFile(_layout.ConfigTomlPath, _layout.ConfigTomlPath + ".account-switcher.bak", overwrite: true);
+        }
         _fileSystem.WriteAllTextAtomic(_layout.ConfigTomlPath, line + Environment.NewLine + existing);
-        return Task.FromResult("Добавлено cli_auth_credentials_store = \"file\" в config.toml; рядом создана резервная копия .account-switcher.bak.");
+        var backupNote = string.IsNullOrEmpty(existing)
+            ? string.Empty
+            : " Рядом создана резервная копия .account-switcher.bak.";
+        return Task.FromResult("Добавлено cli_auth_credentials_store = \"file\" в config.toml." + backupNote);
     }
 
     public string DisplayName(string profileName)
@@ -290,28 +419,38 @@ public sealed class AccountSwitcherService
     private IReadOnlyList<ProfileDefinition> LoadProfileDefinitions()
     {
         EnsureBaseRuntimeDirectories();
-        var storedProfiles = LoadStoredProfileDefinitions();
-        if (storedProfiles.Count > 0)
-        {
-            return storedProfiles;
-        }
-
-        var legacyProfiles = LoadLegacyProfileDefinitions();
-        var profiles = legacyProfiles.Count > 0 ? legacyProfiles : DefaultProfiles;
-        SaveProfileDefinitions(profiles);
-        return profiles;
-    }
-
-    private IReadOnlyList<ProfileDefinition> LoadStoredProfileDefinitions()
-    {
         if (_profileStore is null)
         {
             return LoadLegacyProfileDefinitions();
         }
 
+        if (IsStoredProfileSetInitialized())
+        {
+            return LoadStoredProfileDefinitions();
+        }
+
+        var legacyProfiles = LoadLegacyProfileDefinitions();
+        SaveProfileDefinitions(legacyProfiles);
+        return legacyProfiles;
+    }
+
+    private bool IsStoredProfileSetInitialized()
+    {
         try
         {
-            return NormalizeProfiles(_profileStore.LoadProfiles(_layout));
+            return _profileStore!.IsProfileSetInitialized(_layout);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private IReadOnlyList<ProfileDefinition> LoadStoredProfileDefinitions()
+    {
+        try
+        {
+            return NormalizeProfiles(_profileStore!.LoadProfiles(_layout));
         }
         catch
         {
@@ -340,11 +479,6 @@ public sealed class AccountSwitcherService
     private void SaveProfileDefinitions(IEnumerable<ProfileDefinition> profiles)
     {
         var normalized = NormalizeProfiles(profiles).ToArray();
-        if (normalized.Length == 0)
-        {
-            normalized = DefaultProfiles;
-        }
-
         if (_profileStore is not null)
         {
             _profileStore.SaveProfiles(_layout, normalized);
@@ -397,6 +531,36 @@ public sealed class AccountSwitcherService
         _fileSystem.WriteAllTextAtomic(_layout.ActiveProfilePath, JsonSerializer.Serialize(state, JsonOptions));
     }
 
+    private void RestoreSwitchState(byte[]? previousAuth, byte[]? previousMarker)
+    {
+        if (previousAuth is null)
+        {
+            if (_fileSystem.FileExists(_layout.AuthJsonPath))
+            {
+                _fileSystem.DeleteFile(_layout.AuthJsonPath);
+            }
+        }
+        else
+        {
+            _fileSystem.WriteAllBytesAtomic(_layout.AuthJsonPath, previousAuth);
+        }
+
+        if (previousMarker is null)
+        {
+            ClearActiveProfile();
+        }
+        else
+        {
+            _fileSystem.WriteAllBytesAtomic(_layout.ActiveProfilePath, previousMarker);
+        }
+    }
+
+    private void ClearActiveProfile()
+    {
+        PathSafety.EnsurePathInside(_layout.ActiveProfilePath, _layout.ProfilesDirectory);
+        _fileSystem.DeleteFile(_layout.ActiveProfilePath);
+    }
+
     private string? ReadValidatedActiveProfile(out string? error)
     {
         error = null;
@@ -437,44 +601,29 @@ public sealed class AccountSwitcherService
 
     private static string CleanDisplayName(string displayName)
     {
-        var clean = displayName.Trim();
+        var repaired = TextEncodingRepair.Repair(displayName).Normalize(NormalizationForm.FormC);
+        var clean = new string(repaired.Where(character => !char.IsControl(character)).ToArray()).Trim();
+        if (clean.Length > 160)
+        {
+            clean = clean[..160];
+            if (char.IsHighSurrogate(clean[^1]))
+            {
+                clean = clean[..^1];
+            }
+        }
+
         return string.IsNullOrWhiteSpace(clean) ? "Новый профиль" : clean;
     }
 
     private static string CreateUniqueProfileName(string displayName, IReadOnlyList<ProfileDefinition> profiles)
     {
-        var baseName = Slugify(displayName);
-        if (string.IsNullOrWhiteSpace(baseName))
+        string candidate;
+        do
         {
-            baseName = "profile";
+            candidate = "profile-" + Guid.NewGuid().ToString("N");
         }
-
-        var candidate = baseName;
-        var suffix = 2;
-        while (profiles.Any(profile => string.Equals(profile.Name, candidate, StringComparison.OrdinalIgnoreCase)))
-        {
-            candidate = $"{baseName}-{suffix.ToString(CultureInfo.InvariantCulture)}";
-            suffix++;
-        }
+        while (profiles.Any(profile => string.Equals(profile.Name, candidate, StringComparison.OrdinalIgnoreCase)));
 
         return candidate;
-    }
-
-    private static string Slugify(string value)
-    {
-        var builder = new StringBuilder();
-        foreach (var character in value.Trim().ToLowerInvariant())
-        {
-            if (char.IsLetterOrDigit(character))
-            {
-                builder.Append(character);
-            }
-            else if ((character is '-' or '_' or '.' or ' ') && builder.Length > 0 && builder[^1] != '-')
-            {
-                builder.Append('-');
-            }
-        }
-
-        return builder.ToString().Trim('-');
     }
 }

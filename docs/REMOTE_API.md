@@ -17,7 +17,8 @@ CodexAccountSwitcher.exe --remote-api
 - Keep `CODEX_REMOTE_API_TOKEN` outside source control.
 - Do not commit `.env`, Telegram bot configuration, `auth.json`, profile snapshots, SQLite databases, logs, or generated build output.
 - API responses never include raw `auth.json`, bearer tokens, refresh tokens, account IDs, or full usage endpoint responses.
-- The Telegram bot is not required for the API and is not part of this public API update.
+- The Telegram bot is optional. A sanitized, environment-driven template is available in `integrations/telegram-bot/`.
+- The desktop **Remote control** page can store and test an external HTTPS connection with a DPAPI-protected token. It does not expose this listener or install a tunnel. See `docs/TELEGRAM_GUI_SETUP.md`.
 
 ## Environment Variables
 
@@ -47,7 +48,7 @@ The token is compared in constant time. Token values are not logged or returned.
 
 - `GET /health`
 
-Returns API status and selected Codex Home path.
+Returns only the public service name and health state. It does not disclose the selected Codex Home path.
 
 ### Codex status and accounts
 
@@ -113,7 +114,7 @@ For LAN gateway access, pass explicit network values:
   -AllowedRemoteAddress '<trusted-gateway-ip>'
 ```
 
-To preserve an existing bot/gateway setup after updating the program, rerun the task installer with the same API prefix, Codex Home, allowed gateway address, and token that the bot already uses. The bot itself does not need to be redeployed by this repository update.
+To preserve an existing bot/gateway setup after updating the program, rerun the task installer with the same API prefix, Codex Home, allowed gateway address, and token that the bot already uses. New deployments can use the public template in `integrations/telegram-bot/`; copy `.env.example` to a local untracked `.env` and provide deployment-specific values there.
 
 ## Local Test
 

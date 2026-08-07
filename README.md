@@ -1,111 +1,93 @@
-# Codex Account Switcher
+# Codex Account Switcher for Windows
 
-[Русский](docs/ru/README.md) | [English](docs/en/README.md) | [中文](docs/zh/README.md)
+[![Latest release](https://img.shields.io/github/v/release/korsun009/codex-account-switcher?display_name=tag)](https://github.com/korsun009/codex-account-switcher/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/korsun009/codex-account-switcher/total)](https://github.com/korsun009/codex-account-switcher/releases)
+[![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4)](https://github.com/korsun009/codex-account-switcher/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/korsun009/codex-account-switcher)](LICENSE)
 
-Codex Account Switcher is a local Windows utility for people who use several Codex/OpenAI accounts on the same computer and want switching to feel predictable instead of fragile.
+[Русский](docs/ru/README.md) | **English** | [中文](docs/zh/README.md)
 
-Codex keeps the current sign-in in `auth.json`. When you sign out in the usual way, refresh tokens can be revoked, which may break a saved session and force another manual login. This app takes a safer approach: it keeps separate local sign-in snapshots for your profiles, switches only `auth.json`, and leaves shared Codex state alone.
+Codex Account Switcher is an open-source Windows desktop app for safely switching between multiple OpenAI Codex accounts, viewing 5-hour and weekly usage limits, and controlling Codex from an optional Telegram bot. It keeps one shared Codex Home for chats, projects, MCP servers, plugins, skills, and settings while changing only the active sign-in.
 
-That means your chats, projects, MCP servers, plugins, skills, tool settings, and local Codex workspace stay common, while the active account can be changed from a small desktop app.
+![Codex Account Switcher 2.0 settings screen](docs/images/codex-account-switcher-v2-settings.png)
 
-## Search / Discoverability
+## Download v2.0.0
 
-This project is also useful for people searching for: Codex account switcher, Codex profile switcher, switch Codex accounts on Windows, OpenAI account switcher for Codex, Codex limits viewer, Codex multi-account manager, and safe Codex `auth.json` switcher.
+Download assets from [GitHub Releases](https://github.com/korsun009/codex-account-switcher/releases/latest) and verify them with `SHA256SUMS.txt`.
 
-Russian search phrases: переключатель аккаунтов Codex, смена аккаунта Codex, Codex свитчер, переключение профилей Codex, лимиты Codex, несколько аккаунтов Codex на Windows.
+| Windows | Recommended auto-update installer | Architecture installer | MSI | Portable |
+| --- | --- | --- | --- | --- |
+| 10/11 x64 | `Codex-Account-Switcher-2.0.0-Setup.exe` | `Codex-Account-Switcher-2.0.0-x64-Setup.exe` | `Codex-Account-Switcher-2.0.0-x64-Setup.msi` | `Codex-Account-Switcher-2.0.0-x64-Portable.zip` |
+| 10/11 x86 | `Codex-Account-Switcher-2.0.0-Setup.exe` | `Codex-Account-Switcher-2.0.0-ia32-Setup.exe` | `Codex-Account-Switcher-2.0.0-ia32-Setup.msi` | `Codex-Account-Switcher-2.0.0-ia32-Portable.zip` |
 
-Chinese search phrases: Codex账号切换器, Codex账户切换, Codex多账号管理, OpenAI账号切换工具, Windows Codex账号管理, Codex限额查看.
+`ia32` is the Electron name for 32-bit x86 Windows. The self-contained builds do not require a separate .NET installation. macOS, Linux, Windows 8, and Windows 8.1 are not supported.
 
-## Download
+> **Unsigned release:** v2.0.0 does not yet have an Authenticode Code Signing certificate. Windows may show an unknown-publisher or SmartScreen warning. SHA-256 checksums prove download integrity but do not replace a trusted publisher signature. This limitation is stated in the release notes and will be removed only after a trusted certificate is configured.
 
-Use the latest release assets from [GitHub Releases](https://github.com/korsun009/codex-account-switcher/releases/latest):
+## Features
 
-| System | Installer | Portable |
-| --- | --- | --- |
-| Windows 10/11 x64 | `CodexAccountSwitcherSetup-win-x64.msi` | `CodexAccountSwitcher-portable-win-x64.zip` |
-| Windows 10/11 x86 | `CodexAccountSwitcherSetup-win-x86.msi` | `CodexAccountSwitcher-portable-win-x86.zip` |
+- Add, rename, remove, and switch Codex account profiles from a Russian, English, or Chinese interface.
+- Keep chats, projects, sessions, MCP servers, plugins, skills, and tool configuration shared in one `.codex` directory.
+- Encrypt saved profile credentials with Windows DPAPI for the current Windows user.
+- Validate `auth.json`, create an encrypted backup, and support rollback before replacing the live sign-in.
+- Show 5-hour and weekly Codex limits for all saved profiles without displaying bearer tokens.
+- Find and start Codex desktop processes from installed and packaged Windows locations.
+- Store app settings and profile metadata in a local SQLite database.
+- Check, download, and install stable updates through three separate user actions.
+- Provide an optional authenticated Remote API and a button-first Telegram control plane.
+- Support automatic, dark, gray, and light themes.
 
-Windows 8/8.1 are not targeted. The app is self-contained; users do not need to install .NET separately.
+## Quick Start
 
-## Main Use Cases
+1. Install the recommended NSIS `.exe`, install the MSI, or unpack the portable ZIP.
+2. Open **Codex Account Switcher** and confirm the detected Codex Home folder.
+3. Select **Add account**, enter a display name, and open Codex from the guided flow.
+4. Sign in to the required account in Codex, return to the switcher, and save the sign-in.
+5. Use **Switch** on a profile card. Do not use the normal Codex logout button between saved profiles because logout can revoke the refresh token.
 
-- Keep work, personal, and test Codex accounts on one Windows machine.
-- Switch between profiles without using the normal logout flow.
-- Add new Codex profiles through a guided flow inside the app.
-- See Codex usage limits for all saved profiles from one place.
-- Keep one shared `.codex` home for projects, chats, MCP, plugins, and tools.
+The NSIS installer is recommended because the in-app updater downloads that format. MSI and portable users can check for a release in the app, then update manually from GitHub Releases.
 
-## What The App Does
+## Security Model
 
-- Finds the local `.codex` folder automatically on first launch, with manual selection if needed.
-- Stores the list of profiles in a local SQLite database.
-- Stores each profile sign-in as a separate local `auth.json` snapshot.
-- Makes a backup before replacing the live sign-in.
-- Provides x64 and x86 portable builds.
-- Provides x64 and x86 MSI installers with normal Windows uninstall support.
-- Supports Russian, English, and Chinese in the app UI.
+- Only the live `auth.json` is switched. Shared Codex data is not copied per account.
+- Saved profile credentials and credential backups are encrypted as `auth.dpapi` with Windows DPAPI `CurrentUser`.
+- A legacy plaintext profile is migrated only after encrypted write, decrypt, validation, and byte comparison succeed; the legacy file is then deleted.
+- DPAPI files are bound to the Windows user profile. Do not sync or copy them to another PC as a credential-transfer mechanism. Profile names may appear on another synchronized PC, but encrypted sign-ins are not portable.
+- Tokens are never stored in SQLite, returned by the Remote API, or printed in the interface.
+- The app does not bypass subscriptions, rate limits, account controls, or OpenAI access rules.
 
-## What The App Does Not Do
+See [SECURITY.md](SECURITY.md) for reporting and deployment boundaries.
 
-- It does not upload tokens or account data anywhere.
-- It does not write `auth.json` contents into the SQLite database.
-- It does not separate chats, projects, MCP, plugins, skills, or tools by account.
-- It does not bypass OpenAI limits, subscriptions, account checks, or access rules.
-- It does not support Windows 8/8.1 as a release target.
+## Telegram Remote Control
 
-## Safety model
+The app includes a sanitized direct-bot template in [`integrations/telegram-bot`](integrations/telegram-bot). A separate deployment repository, [codex-telegram-remote](https://github.com/korsun009/codex-telegram-remote), contains the recommended VPS bot, LAN gateway, reverse SSH tunnel, and systemd units.
 
-- Switches only `auth.json`.
-- Keeps chats, projects, sessions, MCP, plugins, skills, and tools shared.
-- Never stores `auth.json` contents in the SQLite database.
-- Creates backups before replacing the live sign-in.
-- Shows Codex usage limits for all saved profiles without logging tokens.
+Available buttons cover PC status and Wake-on-LAN, accounts and limits, Codex start/stop, V2RayTun status/start/Proxy Mode/restart, sleep, reboot, and shutdown. Power actions require a short-lived one-time confirmation. The bot reads account names and limits from the current desktop API, so account additions and removals stay synchronized.
 
-## Quick start
+Use [the GUI and Telegram setup guide](docs/TELEGRAM_GUI_SETUP.md) and [Remote API reference](docs/REMOTE_API.md). Never expose the Windows Remote API directly to the public internet.
 
-1. Install the MSI or unpack the portable zip.
-2. Open Codex Account Switcher.
-3. Let it find your `.codex` folder, or select it manually.
-4. Click **Add account**.
-5. Create a profile, open Codex for sign-in, sign in manually, then save the sign-in.
-6. Use **Switch** on profile cards to move between accounts.
+## Updates
 
-## Codex Limits
+The app checks the stable GitHub `latest` channel only after the user presses **Check for updates**. A found update is downloaded only after a second action and installed only after a third action. Publishing `latest.yml`, both NSIS blockmaps, and the matching installers is part of every release gate.
 
-The app includes a Codex limits screen. It checks the 5-hour and weekly usage state for saved profiles and displays the result inside the app. The check uses the locally saved sign-in for each profile, does not print token values, and does not store bearer tokens in the database.
+## Community Translations
 
-This feature is informational. It does not change limits and does not attempt to work around them.
+Community translations are welcome. Fork the repository, edit the language entries in [`desktop/src/renderer/src/locales/translations.json`](desktop/src/renderer/src/locales/translations.json), keep the key structure and `{{placeholders}}` aligned with Russian, run the validation commands, and open a pull request. The complete workflow is in [docs/TRANSLATIONS.md](docs/TRANSLATIONS.md).
 
-## Remote API
+## Build and Test
 
-The app can also run an optional local HTTP API with `CodexAccountSwitcher.exe --remote-api`.
-It exposes fixed operations for status, account switching, limits, Codex process control, selected Windows power actions, and V2RayTun helpers.
-
-The API is designed for local or private-gateway use. It requires a bearer token for every route except `/health`, does not return raw `auth.json` or token values, and should not be exposed directly to the public internet.
-
-See [docs/REMOTE_API.md](docs/REMOTE_API.md) for routes, environment variables, and scheduled-task setup.
-
-## Interface
-
-- Theme options: automatic, dark, gray, and light.
-- Automatic mode follows the Windows app theme.
-- The darkest theme is used when Windows is in dark mode.
-- Language options: Russian, English, and Chinese.
-- Profiles can be added and removed from the Settings screen.
-
-## Build From Source
-
-Requirements:
-
-- Windows 10/11
-- .NET 8 SDK
-- WiX Toolset support for the installer projects
-
-Run:
+Requirements: Windows 10/11, PowerShell 7.4+, Node.js 22+, pnpm 11+, and .NET 8 SDK.
 
 ```powershell
-dotnet test codex-account-switcher\CodexAccountSwitcher.sln
-.\scripts\build-release.ps1 -Version v1.0.1
+dotnet test .\codex-account-switcher\CodexAccountSwitcher.sln --configuration Release
+Push-Location .\desktop
+pnpm install --frozen-lockfile
+pnpm typecheck
+pnpm test
+Pop-Location
+pwsh -File .\scripts\build-release.ps1
 ```
 
-The build script creates the same four Windows variants used in public releases.
+The production build rejects unsigned executables by default. `-AllowUnsigned` is reserved for explicit local candidates and does not make them signed.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md), [v2.0.0 release notes](docs/RELEASE_NOTES_2.0.0.md), and the [MIT license](LICENSE).

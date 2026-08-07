@@ -46,13 +46,11 @@ public sealed class AccountSwitcherServiceTests : IDisposable
     }
 
     [Fact]
-    public void ListProfilesUsesNamedAccountLabels()
+    public void CleanInstallStartsWithNoProfiles()
     {
         var profiles = _service.ListProfiles();
 
-        Assert.Contains(profiles, profile => profile.Name == "acc1" && profile.DisplayName == "korsuntop");
-        Assert.Contains(profiles, profile => profile.Name == "acc2" && profile.DisplayName == "korsunfin009");
-        Assert.Contains(profiles, profile => profile.Name == "acc3" && profile.DisplayName == "tylerl");
+        Assert.Empty(profiles);
     }
 
     [Fact]
@@ -60,35 +58,81 @@ public sealed class AccountSwitcherServiceTests : IDisposable
     {
         var profile = _service.AddProfile("Рабочий Codex");
 
-        Assert.Equal("рабочий-codex", profile.Name);
+        Assert.Matches("^profile-[0-9a-f]{32}$", profile.Name);
         Assert.Equal("Рабочий Codex", profile.DisplayName);
         Assert.True(Directory.Exists(profile.DirectoryPath));
         Assert.Contains(_service.ListProfiles(), item => item.Name == profile.Name && item.DisplayName == "Рабочий Codex");
     }
 
     [Fact]
-    public async Task DeleteProfileRefusesActiveProfile()
+    public void AddProfilePreservesArbitraryPrintableUnicodeDisplayName()
     {
-        await _service.CaptureCurrentAuthAsProfileAsync("acc1", CancellationToken.None);
+        const string displayName = "  Тестовый аккаунт 🔐 / №1: 工作 #prod  ";
 
-        var result = _service.DeleteProfile("acc1");
+        var profile = _service.AddProfile(displayName);
 
-        Assert.False(result.Success);
-        Assert.Contains("активный", result.Message);
-        Assert.True(Directory.Exists(_layout.ProfileDirectory("acc1")));
+        Assert.Equal("Тестовый аккаунт 🔐 / №1: 工作 #prod", profile.DisplayName);
+        Assert.Matches("^profile-[0-9a-f]{32}$", profile.Name);
+        Assert.DoesNotContain(profile.DisplayName, profile.DirectoryPath);
+    }
+
+    [Theory]
+    [InlineData("legacy profile")]
+    [InlineData("старый-профиль")]
+    [InlineData("legacy.profile_2026")]
+    public void SafeLegacyStorageNamesRemainSupported(string profileName)
+    {
+        PathSafety.EnsureSafeProfileName(profileName);
+    }
+
+    [Theory]
+    [InlineData("..")]
+    [InlineData("../outside")]
+    [InlineData("C:\\outside")]
+    [InlineData("name:stream")]
+    [InlineData("CON")]
+    [InlineData("CON .txt")]
+    [InlineData("profile.")]
+    [InlineData("profile ")]
+    public void UnsafeStorageNamesRemainRejected(string profileName)
+    {
+        Assert.Throws<InvalidOperationException>(() => PathSafety.EnsureSafeProfileName(profileName));
     }
 
     [Fact]
-    public void DeleteProfileRemovesNonActiveProfileDirectory()
+    public async Task DeleteActiveProfileClearsMarkerAndPreservesLiveAuth()
+    {
+        AddProfiles("acc1");
+        await _service.CaptureCurrentAuthAsProfileAsync("acc1", CancellationToken.None);
+        File.WriteAllText(_layout.AuthJsonPath, "{\"token\":\"refreshed-live-secret\"}");
+
+        var result = _service.DeleteProfile("acc1");
+
+        Assert.True(result.Success);
+        Assert.Null(result.ActiveProfile);
+        Assert.False(File.Exists(_layout.ActiveProfilePath));
+        Assert.False(Directory.Exists(_layout.ProfileDirectory("acc1")));
+        Assert.Equal("{\"token\":\"refreshed-live-secret\"}", File.ReadAllText(_layout.AuthJsonPath));
+        Assert.Empty(_service.ListProfiles());
+    }
+
+    [Fact]
+    public void DeleteLastProfileLeavesEmptyAndPreservesLiveAuth()
     {
         var profile = _service.AddProfile("Temporary");
         File.WriteAllText(_layout.ProfileAuthPath(profile.Name), "{\"token\":\"temporary\"}");
+        var liveAuth = File.ReadAllText(_layout.AuthJsonPath);
 
         var result = _service.DeleteProfile(profile.Name);
 
         Assert.True(result.Success);
+        Assert.Null(result.ActiveProfile);
         Assert.False(Directory.Exists(profile.DirectoryPath));
-        Assert.DoesNotContain(_service.ListProfiles(), item => item.Name == profile.Name);
+        Assert.Equal(liveAuth, File.ReadAllText(_layout.AuthJsonPath));
+        Assert.Empty(_service.ListProfiles());
+
+        var reloaded = new AccountSwitcherService(_layout, _fileSystem, _processService);
+        Assert.Empty(reloaded.ListProfiles());
     }
 
     [Fact]
@@ -102,7 +146,7 @@ public sealed class AccountSwitcherServiceTests : IDisposable
         File.WriteAllText(_layout.ProfileAuthPath(profile.Name), "{\"token\":\"do-not-store\"}");
         var reloaded = new AccountSwitcherService(_layout, _fileSystem, _processService, new SqliteAppDatabase(databasePath));
 
-        Assert.Contains(reloaded.ListProfiles(), item => item.Name == "public-profile" && item.DisplayName == "Public Profile");
+        Assert.Contains(reloaded.ListProfiles(), item => item.Name == profile.Name && item.DisplayName == "Public Profile");
         Assert.DoesNotContain("do-not-store", File.ReadAllText(databasePath));
     }
 
@@ -123,8 +167,8 @@ public sealed class AccountSwitcherServiceTests : IDisposable
                 Content = new StringContent("""
                 {
                   "codex": {
-                    "primary_window": { "percent_left": 61.5, "reset_at": "2026-05-16T12:00:00Z" },
-                    "secondary_window": { "remaining_percent": 42, "reset_at": "2026-05-18T00:00:00Z" }
+                    "primary_window": { "percent_left": 61.5, "limit_window_seconds": 18000, "reset_at": "2026-05-16T12:00:00Z" },
+                    "secondary_window": { "remaining_percent": 42, "limit_window_seconds": 604800, "reset_at": "2026-05-18T00:00:00Z" }
                   }
                 }
                 """)
@@ -143,6 +187,8 @@ public sealed class AccountSwitcherServiceTests : IDisposable
     [Fact]
     public async Task SwitchRefusesProfileWithoutAuthJson()
     {
+        AddProfiles("acc2");
+
         var result = await _service.SwitchToAsync("acc2", CancellationToken.None);
 
         Assert.False(result.Success);
@@ -153,11 +199,14 @@ public sealed class AccountSwitcherServiceTests : IDisposable
     [Fact]
     public async Task CaptureCurrentAuthCreatesProfileSnapshotAndMarker()
     {
+        AddProfiles("acc1");
+
         var result = await _service.CaptureCurrentAuthAsProfileAsync("acc1", CancellationToken.None);
 
         Assert.True(result.Success);
-        Assert.True(File.Exists(_layout.ProfileAuthPath("acc1")));
-        Assert.Equal(File.ReadAllText(_layout.AuthJsonPath), File.ReadAllText(_layout.ProfileAuthPath("acc1")));
+        Assert.True(File.Exists(_layout.ProfileEncryptedAuthPath("acc1")));
+        Assert.False(File.Exists(_layout.ProfileAuthPath("acc1")));
+        Assert.Equal(File.ReadAllText(_layout.AuthJsonPath), ReadProfileAuthText("acc1"));
 
         var state = JsonSerializer.Deserialize<ActiveProfileState>(File.ReadAllText(_layout.ActiveProfilePath));
         Assert.Equal("acc1", state?.ActiveProfile);
@@ -166,6 +215,7 @@ public sealed class AccountSwitcherServiceTests : IDisposable
     [Fact]
     public async Task SwitchSavesPreviousProfileAndReplacesLiveAuth()
     {
+        AddProfiles("acc1", "acc2");
         await _service.CaptureCurrentAuthAsProfileAsync("acc1", CancellationToken.None);
         File.WriteAllText(_layout.AuthJsonPath, "{\"token\":\"refreshed-acc1\"}");
         Directory.CreateDirectory(_layout.ProfileDirectory("acc2"));
@@ -175,16 +225,37 @@ public sealed class AccountSwitcherServiceTests : IDisposable
 
         Assert.True(result.Success);
         Assert.Equal("{\"token\":\"acc2-secret\"}", File.ReadAllText(_layout.AuthJsonPath));
-        Assert.Equal("{\"token\":\"refreshed-acc1\"}", File.ReadAllText(_layout.ProfileAuthPath("acc1")));
+        Assert.Equal("{\"token\":\"refreshed-acc1\"}", ReadProfileAuthText("acc1"));
         Assert.True(_processService.StopCalled);
         Assert.True(_processService.LaunchCalled);
         Assert.NotNull(result.BackupDirectory);
-        Assert.True(File.Exists(Path.Combine(result.BackupDirectory!, "auth.json")));
+        Assert.True(File.Exists(Path.Combine(result.BackupDirectory!, "auth.dpapi")));
+        Assert.False(File.Exists(Path.Combine(result.BackupDirectory!, "auth.json")));
+    }
+
+    [Fact]
+    public async Task SwitchLaunchFailureRollsBackLiveAuthAndActiveMarker()
+    {
+        AddProfiles("acc1", "acc2");
+        await _service.CaptureCurrentAuthAsProfileAsync("acc1", CancellationToken.None);
+        File.WriteAllText(_layout.AuthJsonPath, "{\"token\":\"refreshed-acc1\"}");
+        Directory.CreateDirectory(_layout.ProfileDirectory("acc2"));
+        File.WriteAllText(_layout.ProfileAuthPath("acc2"), "{\"token\":\"acc2-secret\"}");
+        _processService.Reset();
+        _processService.ThrowOnLaunch = true;
+
+        var result = await _service.SwitchToAsync("acc2", CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("восстановлен", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("{\"token\":\"refreshed-acc1\"}", File.ReadAllText(_layout.AuthJsonPath));
+        Assert.Equal("acc1", _service.ReadActiveProfile());
     }
 
     [Fact]
     public async Task SwitchRefusesCorruptActiveProfileMarkerBeforeChangingAuth()
     {
+        AddProfiles("acc2");
         Directory.CreateDirectory(_layout.ProfileDirectory("acc2"));
         File.WriteAllText(_layout.ProfileAuthPath("acc2"), "{\"token\":\"acc2-secret\"}");
         Directory.CreateDirectory(_layout.ProfilesDirectory);
@@ -202,6 +273,7 @@ public sealed class AccountSwitcherServiceTests : IDisposable
     [Fact]
     public async Task PrepareCleanLoginBacksUpSavesActiveProfileAndRemovesLiveAuth()
     {
+        AddProfiles("acc3");
         await _service.CaptureCurrentAuthAsProfileAsync("acc3", CancellationToken.None);
         File.WriteAllText(_layout.AuthJsonPath, "{\"token\":\"refreshed-acc3\"}");
         _processService.Reset();
@@ -211,11 +283,11 @@ public sealed class AccountSwitcherServiceTests : IDisposable
         Assert.True(result.Success);
         Assert.Contains("чистого входа", result.Message);
         Assert.False(File.Exists(_layout.AuthJsonPath));
-        Assert.Equal("{\"token\":\"refreshed-acc3\"}", File.ReadAllText(_layout.ProfileAuthPath("acc3")));
+        Assert.Equal("{\"token\":\"refreshed-acc3\"}", ReadProfileAuthText("acc3"));
         Assert.True(_processService.StopCalled);
         Assert.True(_processService.LaunchCalled);
         Assert.NotNull(result.BackupDirectory);
-        Assert.True(File.Exists(Path.Combine(result.BackupDirectory!, "auth.json")));
+        Assert.True(File.Exists(Path.Combine(result.BackupDirectory!, "auth.dpapi")));
     }
 
     [Fact]
@@ -231,6 +303,20 @@ public sealed class AccountSwitcherServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task EnsureFileAuthCreatesConfigWhenItDoesNotExist()
+    {
+        File.Delete(_layout.ConfigTomlPath);
+
+        var message = await _service.EnsureFileAuthConfigAsync(CancellationToken.None);
+
+        Assert.Contains("Добавлено", message);
+        Assert.Equal(
+            "cli_auth_credentials_store = \"file\"" + Environment.NewLine,
+            File.ReadAllText(_layout.ConfigTomlPath));
+        Assert.False(File.Exists(_layout.ConfigTomlPath + ".account-switcher.bak"));
+    }
+
+    [Fact]
     public async Task RestoreLatestAuthBackupRestoresAuthJson()
     {
         var backup = await _service.CreateAccountFileBackupAsync(CancellationToken.None);
@@ -243,6 +329,18 @@ public sealed class AccountSwitcherServiceTests : IDisposable
         Assert.Equal("{\"token\":\"live-secret\"}", File.ReadAllText(_layout.AuthJsonPath));
     }
 
+    [Fact]
+    public async Task VerifyAuthBackupRejectsTamperedEncryptedData()
+    {
+        var backup = await _service.CreateAccountFileBackupAsync(CancellationToken.None);
+
+        Assert.True(_service.VerifyAuthBackup(backup));
+
+        File.WriteAllBytes(Path.Combine(backup, "auth.dpapi"), [1, 2, 3, 4]);
+
+        Assert.False(_service.VerifyAuthBackup(backup));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))
@@ -251,10 +349,29 @@ public sealed class AccountSwitcherServiceTests : IDisposable
         }
     }
 
+    private void AddProfiles(params string[] names)
+    {
+        Directory.CreateDirectory(_layout.ProfilesDirectory);
+        var profiles = names.Select(name => new ProfileDefinition(name, name)).ToArray();
+        File.WriteAllText(
+            Path.Combine(_layout.ProfilesDirectory, "profiles.json"),
+            JsonSerializer.Serialize(new ProfileRegistry(profiles)));
+        foreach (var name in names)
+        {
+            Directory.CreateDirectory(_layout.ProfileDirectory(name));
+        }
+    }
+
+    private string ReadProfileAuthText(string profileName)
+    {
+        return System.Text.Encoding.UTF8.GetString(new ProfileCredentialStore(_layout, _fileSystem).Read(profileName));
+    }
+
     private sealed class FakeProcessService : ICodexProcessService
     {
         public bool StopCalled { get; private set; }
         public bool LaunchCalled { get; private set; }
+        public bool ThrowOnLaunch { get; set; }
 
         public IReadOnlyList<CodexProcessInfo> FindRunningCodexProcesses() => [];
 
@@ -267,6 +384,10 @@ public sealed class AccountSwitcherServiceTests : IDisposable
         public Task LaunchCodexAsync(CancellationToken cancellationToken)
         {
             LaunchCalled = true;
+            if (ThrowOnLaunch)
+            {
+                throw new InvalidOperationException("Synthetic launch failure.");
+            }
             return Task.CompletedTask;
         }
 
@@ -274,6 +395,7 @@ public sealed class AccountSwitcherServiceTests : IDisposable
         {
             StopCalled = false;
             LaunchCalled = false;
+            ThrowOnLaunch = false;
         }
     }
 

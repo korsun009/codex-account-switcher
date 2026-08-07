@@ -1,0 +1,4 @@
+httpx==0.28.1
+python-telegram-bot==22.5
+pytest==8.4.2
+tzdata==2026.3

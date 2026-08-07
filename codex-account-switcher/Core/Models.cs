@@ -31,6 +31,8 @@ public sealed record CodexHomeLayout(
     public string ProfileDirectory(string profileName) => Path.Combine(ProfilesDirectory, profileName);
 
     public string ProfileAuthPath(string profileName) => Path.Combine(ProfileDirectory(profileName), "auth.json");
+
+    public string ProfileEncryptedAuthPath(string profileName) => Path.Combine(ProfileDirectory(profileName), "auth.dpapi");
 }
 
 public sealed record AccountProfile(string Name, string DisplayName, string DirectoryPath, bool HasAuthJson);
@@ -57,3 +59,21 @@ public sealed record FileInventoryItem(
 public sealed record ActiveProfileState(
     [property: JsonPropertyName("activeProfile")] string ActiveProfile,
     [property: JsonPropertyName("lastSwitchUtc")] DateTimeOffset LastSwitchUtc);
+
+public sealed record RemoteConnectionSummary(
+    string Id,
+    string DisplayName,
+    string Type,
+    string Endpoint,
+    bool HasToken,
+    DateTimeOffset CreatedUtc);
+
+public sealed record RemoteConnectionTestResult(bool Success, int? StatusCode, string Message);
+
+internal sealed record StoredRemoteConnection(
+    string Id,
+    string DisplayName,
+    string Type,
+    string Endpoint,
+    byte[] ProtectedToken,
+    DateTimeOffset CreatedUtc);

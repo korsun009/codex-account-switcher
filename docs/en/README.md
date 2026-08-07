@@ -1,124 +1,48 @@
-# Codex Account Switcher
+# Codex Account Switcher for Windows
 
-## What it is
+[Main README](../../README.md) | [Русский](../ru/README.md) | [中文](../zh/README.md)
 
-Codex Account Switcher is a local Windows app for safely switching between several Codex/OpenAI accounts on the same computer. It is designed for users who want multiple Codex sign-ins without repeatedly logging out, breaking refresh tokens, or rebuilding the local Codex environment for every account.
+Codex Account Switcher is an open-source Windows app for switching multiple OpenAI Codex accounts, viewing 5-hour and weekly limits, and optionally controlling Codex through Telegram. Chats, projects, MCP servers, plugins, skills, and settings stay shared; only the active sign-in changes.
 
-The app keeps projects, chats, MCP servers, plugins, skills, and tool settings shared. Only the active Codex sign-in changes.
+## Download 2.0.0
 
-It is useful if you have:
+Get the release from [GitHub Releases](https://github.com/korsun009/codex-account-switcher/releases/latest) and verify `SHA256SUMS.txt`.
 
-- a work account and a personal account;
-- separate accounts for different projects;
-- a test account for checking Codex behavior;
-- several profiles that should share one local Codex setup.
+| Windows | Auto-update installer | Architecture installer | MSI | Portable |
+| --- | --- | --- | --- | --- |
+| 10/11 x64 | `Codex-Account-Switcher-2.0.0-Setup.exe` | `Codex-Account-Switcher-2.0.0-x64-Setup.exe` | `Codex-Account-Switcher-2.0.0-x64-Setup.msi` | `Codex-Account-Switcher-2.0.0-x64-Portable.zip` |
+| 10/11 x86 | `Codex-Account-Switcher-2.0.0-Setup.exe` | `Codex-Account-Switcher-2.0.0-ia32-Setup.exe` | `Codex-Account-Switcher-2.0.0-ia32-Setup.msi` | `Codex-Account-Switcher-2.0.0-ia32-Portable.zip` |
 
-## The problem it solves
+`ia32` means 32-bit x86 Windows. Builds are self-contained. macOS, Linux, Windows 8, and Windows 8.1 are unsupported.
 
-Codex stores the current sign-in in `auth.json`. A normal Codex logout can revoke the refresh token. After that, a saved sign-in can stop working and require manual login again.
+> v2.0.0 is not Authenticode signed. Windows can show an unknown-publisher or SmartScreen warning. Checksums verify integrity but do not replace a trusted publisher signature.
 
-Codex Account Switcher does not use the normal logout flow. Instead, it keeps separate local sign-in snapshots for each profile and switches only `auth.json`. Everything else inside `.codex` remains shared.
+## Highlights
 
-This gives you quick account switching while keeping one common Codex workspace.
+- GUI profile creation, removal, and switching.
+- DPAPI CurrentUser encryption for saved sign-ins and backups.
+- `auth.json` validation, backup, and rollback.
+- 5-hour and weekly Codex usage limits without token output.
+- Explicit check, download, and install update actions.
+- Russian, English, and Chinese UI plus four themes.
+- Optional authenticated Remote API and button-first Telegram bot.
 
-## Search phrases
+## Use
 
-If you are searching on Google, GitHub, or another search engine, this project may match: `Codex account switcher`, `Codex profile switcher`, `switch Codex accounts`, `OpenAI account switcher for Codex`, `Codex multi account`, `Codex limits viewer`, `Codex usage limits`, `Windows Codex account manager`, and `safe auth.json switcher`.
+Install the recommended NSIS EXE, MSI, or portable ZIP. Add an account in the guided flow, open Codex, sign in manually, then return and save that sign-in. Use **Switch** on profile cards. Avoid normal Codex logout between saved profiles because it can revoke refresh tokens.
 
-In short: this is a Windows utility for safely switching Codex accounts, managing multiple Codex profiles, and viewing 5-hour and weekly Codex limits for saved profiles.
+The NSIS EXE is recommended for in-app updates. MSI and portable users can check the version in the app and update manually from GitHub Releases.
 
-## Download
+## Security
 
-Download the latest version from [GitHub Releases](https://github.com/korsun009/codex-account-switcher/releases/latest). Releases provide four main files:
+The app switches only the live `auth.json`. Saved sign-ins are encrypted as `auth.dpapi` with Windows DPAPI for the current Windows user. They are intentionally not portable to another PC or Windows user. A synchronized profile name can appear elsewhere, but its encrypted credentials cannot be decrypted there and must be recorded again.
 
-| System | Installer | Portable |
-| --- | --- | --- |
-| Windows 10/11 x64 | `CodexAccountSwitcherSetup-win-x64.msi` | `CodexAccountSwitcher-portable-win-x64.zip` |
-| Windows 10/11 x86 | `CodexAccountSwitcherSetup-win-x86.msi` | `CodexAccountSwitcher-portable-win-x86.zip` |
+Tokens are not stored in SQLite, printed in the UI, or returned by the Remote API. The app does not bypass OpenAI limits, subscriptions, or access controls.
 
-Windows 8/8.1 are not supported. .NET does not need to be installed separately.
+## Telegram and translations
 
-## What the app can do
+See the [GUI and Telegram setup guide](../TELEGRAM_GUI_SETUP.md), [Remote API](../REMOTE_API.md), and the separate [codex-telegram-remote](https://github.com/korsun009/codex-telegram-remote) deployment repository.
 
-- Automatically locate the `.codex` folder on first launch.
-- Ask for manual folder selection if automatic detection fails.
-- Add new profiles from the app UI.
-- Guide the user through creating a profile, opening Codex, signing in manually, and saving the sign-in.
-- Switch the active profile with one button.
-- Show the currently active account.
-- Show Codex limits for all saved profiles.
-- Store the profile list in a local SQLite database.
-- Create a backup before replacing the live sign-in.
-- Support Russian, English, and Chinese UI languages.
-- Support automatic, dark, gray, and light themes.
-- Follow the Windows app theme in automatic mode.
+Community translations are welcome through a fork and pull request. Edit [`desktop/src/renderer/src/locales/translations.json`](../../desktop/src/renderer/src/locales/translations.json), preserve the key tree and `{{placeholders}}`, validate, and open a PR. See [TRANSLATIONS.md](../TRANSLATIONS.md).
 
-## What the app does not do
-
-- It does not upload tokens or account data to any server.
-- It does not store `auth.json` contents in the SQLite database.
-- It does not separate projects, chats, MCP, plugins, skills, or tools by account.
-- It does not bypass OpenAI or Codex limits.
-- It does not change subscriptions, account permissions, or access rules.
-- It does not support Windows 8/8.1.
-
-## How to use
-
-1. Install the MSI or unpack the portable zip.
-2. Start the app.
-3. On first launch, let it find `.codex`; if it cannot, select the folder manually.
-4. Click `Add account`.
-5. Enter a clear profile name.
-6. Click `Open Codex`, then sign in manually to the needed account.
-7. Return to the app and click `Save sign-in`.
-8. Use `Switch` on a profile card to change accounts.
-
-## Adding a new account
-
-Adding an account is handled by a guided flow inside the app. The user stays in control, but does not need to remember a sequence of separate utility buttons.
-
-1. Open `Add account`.
-2. Enter a profile name, such as `Work Codex` or `Personal`.
-3. Click `Create profile`.
-4. Click `Open Codex`.
-5. In Codex, sign in manually to the account you want.
-6. Return to Codex Account Switcher.
-7. Click `Save sign-in`.
-
-The profile will then appear in the profile list and can be used for switching.
-
-## Safety
-
-- Only `auth.json` is switched.
-- Projects, chats, MCP, plugins, and tools stay shared.
-- `auth.json` contents are not stored in the SQLite database.
-- A backup is created before replacing the live sign-in.
-- Tokens are not printed in the UI or log.
-
-Important: do not use the normal Codex logout button while recording several accounts. Logout can revoke the refresh token and break a saved sign-in.
-
-## Codex limits
-
-The `Codex Limits` screen shows 5-hour and weekly limits for all saved profiles. The app reads only the required values from each local profile sign-in, calls the usage endpoint, and does not store bearer tokens in the database.
-
-This feature is informational only. It does not increase limits and does not attempt to bypass them.
-
-## Installer and portable builds
-
-There are two ways to use the app:
-
-- MSI installer: normal Windows installation, with removal through Windows settings or the uninstall file.
-- Portable zip: unpack the folder and run the app without installation.
-
-Both variants are published for x64 and x86. User-facing changes should be verified across all four release variants.
-
-## Build from source
-
-Requirements: Windows 10/11, .NET 8 SDK, and WiX Toolset support for the installer projects.
-
-```powershell
-dotnet test codex-account-switcher\CodexAccountSwitcher.sln
-.\scripts\build-release.ps1 -Version v1.0.1
-```
-
-The script creates portable x64, portable x86, MSI x64, MSI x86, the source archive, and `SHA256SUMS.txt`.
+Build and contribution details are in the [main README](../../README.md), [CONTRIBUTING.md](../../CONTRIBUTING.md), and [v2.0.0 release notes](../RELEASE_NOTES_2.0.0.md).

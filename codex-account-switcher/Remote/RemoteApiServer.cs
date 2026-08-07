@@ -21,6 +21,7 @@ public sealed class RemoteApiServer
     private readonly AccountSwitcherService _switcher;
     private readonly ICodexProcessService _processService;
     private readonly CodexUsageService _usageService;
+    private readonly ProfileCredentialStore _credentialStore;
     private readonly V2RayTunService _v2RayTunService;
 
     public RemoteApiServer(
@@ -36,6 +37,7 @@ public sealed class RemoteApiServer
         _switcher = switcher;
         _processService = processService;
         _usageService = usageService ?? new CodexUsageService();
+        _credentialStore = new ProfileCredentialStore(layout, new RealFileSystem());
         _v2RayTunService = v2RayTunService ?? new V2RayTunService();
         _listener.Prefixes.Add(options.Prefix);
     }
@@ -100,7 +102,7 @@ public sealed class RemoteApiServer
             return ApiResult.Ok(ApiEnvelope.Success("Remote API is healthy.", new
             {
                 service = "CodexAccountSwitcher.RemoteApi",
-                codexHome = _layout.CodexHome
+                healthy = true
             }));
         }
 
@@ -131,17 +133,17 @@ public sealed class RemoteApiServer
             var usages = new List<UsageDto>();
             foreach (var profile in _switcher.ListProfiles())
             {
-                var authPath = string.Equals(profile.Name, _switcher.ReadActiveProfile(), StringComparison.OrdinalIgnoreCase)
-                    ? _layout.AuthJsonPath
-                    : _layout.ProfileAuthPath(profile.Name);
-
-                if (!File.Exists(authPath))
+                var isActive = string.Equals(profile.Name, _switcher.ReadActiveProfile(), StringComparison.OrdinalIgnoreCase);
+                if (isActive && !File.Exists(_layout.AuthJsonPath) || !isActive && !_credentialStore.HasCredentials(profile.Name))
                 {
                     usages.Add(new UsageDto(profile.Name, profile.DisplayName, false, false, null, null, null, "auth.json is not saved for this profile."));
                     continue;
                 }
 
-                var usage = await _usageService.FetchAsync(authPath, cancellationToken);
+                var authDocument = isActive
+                    ? await File.ReadAllBytesAsync(_layout.AuthJsonPath, cancellationToken)
+                    : _credentialStore.Read(profile.Name);
+                var usage = await _usageService.FetchAsync(authDocument, cancellationToken);
                 usages.Add(new UsageDto(profile.Name, profile.DisplayName, true, usage.Success, usage.FiveHour, usage.Weekly, usage.FetchedAt, usage.Message));
             }
 
@@ -209,7 +211,8 @@ public sealed class RemoteApiServer
 
         if (request.HttpMethod == "POST" && path == "/sleep")
         {
-            SuspendWindows();
+            // Let the gateway receive a success response before the process suspends Windows.
+            SleepRequestScheduler.Schedule(SuspendWindows, TimeSpan.FromMilliseconds(500));
             return ApiResult.Ok(ApiEnvelope.Success("Windows sleep requested."));
         }
 
@@ -341,14 +344,9 @@ public sealed class RemoteApiServer
 
     private static CommandResult[] ConfigurePowerForRemoteSleep()
     {
-        return
-        [
-            RunCommand("powercfg.exe", "/SETACVALUEINDEX SCHEME_CURRENT SUB_NONE CONSOLELOCK 0", TimeSpan.FromSeconds(10)),
-            RunCommand("powercfg.exe", "/SETDCVALUEINDEX SCHEME_CURRENT SUB_NONE CONSOLELOCK 0", TimeSpan.FromSeconds(10)),
-            RunCommand("powercfg.exe", "/SETACTIVE SCHEME_CURRENT", TimeSpan.FromSeconds(10)),
-            RunCommand("powercfg.exe", "/requestsoverride PROCESS Codex.exe EXECUTION", TimeSpan.FromSeconds(10)),
-            RunCommand("powercfg.exe", "/requestsoverride PROCESS codex.exe EXECUTION", TimeSpan.FromSeconds(10))
-        ];
+        return RemotePowerConfiguration.BuildCommands()
+            .Select(command => RunCommand(command.FileName, command.Arguments, command.Timeout))
+            .ToArray();
     }
 
     private CommandResult[] ConfigureFirewallForHomeGateway()

@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace CodexAccountSwitcher.Core;
 
 public interface ICodexProcessService
@@ -11,104 +9,101 @@ public interface ICodexProcessService
 
 public sealed class WindowsCodexProcessService : ICodexProcessService
 {
+    private readonly IProcessInventory _inventory;
+    private readonly IProcessController _controller;
+    private readonly ICodexAppLauncher _launcher;
+    private readonly TimeSpan _gracefulCloseDelay;
+    private readonly TimeSpan _pollDelay;
+
+    public WindowsCodexProcessService()
+        : this(
+            new WindowsProcessInventory(),
+            new WindowsProcessController(),
+            new WindowsCodexAppLauncher(),
+            TimeSpan.FromSeconds(2),
+            TimeSpan.FromMilliseconds(250))
+    {
+    }
+
+    public WindowsCodexProcessService(
+        IProcessInventory inventory,
+        IProcessController controller,
+        ICodexAppLauncher launcher,
+        TimeSpan gracefulCloseDelay,
+        TimeSpan pollDelay)
+    {
+        _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
+        _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _launcher = launcher ?? throw new ArgumentNullException(nameof(launcher));
+        _gracefulCloseDelay = gracefulCloseDelay;
+        _pollDelay = pollDelay;
+    }
+
     public IReadOnlyList<CodexProcessInfo> FindRunningCodexProcesses()
     {
-        return Process.GetProcesses()
-            .Where(process => process.ProcessName.Equals("Codex", StringComparison.OrdinalIgnoreCase)
-                || process.ProcessName.Equals("codex", StringComparison.OrdinalIgnoreCase))
-            .Select(process => new CodexProcessInfo(process.ProcessName, process.Id, SafePath(process)))
+        return CodexProcessLocator.FindStoreCodexProcesses(_inventory.Capture())
+            .Select(process => new CodexProcessInfo(
+                process.ProcessName,
+                process.ProcessId,
+                process.ExecutablePath))
             .ToArray();
     }
 
     public async Task StopCodexAsync(TimeSpan timeout, CancellationToken cancellationToken)
     {
         var deadline = DateTimeOffset.UtcNow.Add(timeout);
-        foreach (var process in Process.GetProcesses()
-            .Where(process => process.ProcessName.Equals("Codex", StringComparison.OrdinalIgnoreCase)
-                || process.ProcessName.Equals("codex", StringComparison.OrdinalIgnoreCase)))
+        foreach (var root in CodexProcessLocator.FindStoreCodexRoots(_inventory.Capture()))
+        {
+            _controller.TryCloseMainWindow(root);
+        }
+
+        if (_gracefulCloseDelay > TimeSpan.Zero)
+        {
+            await Task.Delay(_gracefulCloseDelay, cancellationToken);
+        }
+
+        var afterClose = _inventory.Capture();
+        var remainingRoots = CodexProcessLocator.FindStoreCodexRoots(afterClose);
+        if (remainingRoots.Count == 0 && CodexProcessLocator.FindStoreCodexProcesses(afterClose).Count > 0)
+        {
+            remainingRoots = CodexProcessLocator.FindTopLevelStoreCodexProcesses(afterClose);
+        }
+
+        foreach (var root in remainingRoots)
         {
             try
             {
-                if (!process.HasExited)
-                {
-                    process.CloseMainWindow();
-                    await Task.Delay(500, cancellationToken);
-                    if (!process.HasExited)
-                    {
-                        process.Kill(entireProcessTree: true);
-                    }
-                }
+                _controller.KillProcessTree(root);
             }
             catch
             {
-                // Best effort. The verification loop below decides success.
+                // The bounded verification loop below decides whether shutdown succeeded.
             }
         }
 
         while (DateTimeOffset.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (FindRunningCodexProcesses().Count == 0)
+            if (CodexProcessLocator.FindStoreCodexProcesses(_inventory.Capture()).Count == 0)
             {
                 return;
             }
 
-            await Task.Delay(250, cancellationToken);
+            if (_pollDelay > TimeSpan.Zero)
+            {
+                await Task.Delay(_pollDelay, cancellationToken);
+            }
+            else
+            {
+                await Task.Yield();
+            }
         }
 
-        throw new TimeoutException("Codex did not exit before the switch timeout.");
+        throw new TimeoutException("Codex package did not exit before the switch timeout.");
     }
 
     public Task LaunchCodexAsync(CancellationToken cancellationToken)
     {
-        var aumid = FindCodexAumid();
-        if (string.IsNullOrWhiteSpace(aumid))
-        {
-            throw new InvalidOperationException("Could not find Codex AUMID with Get-StartApps.");
-        }
-
-        Process.Start(new ProcessStartInfo
-        {
-            FileName = "explorer.exe",
-            Arguments = $"shell:AppsFolder\\{aumid}",
-            UseShellExecute = true
-        });
-
-        return Task.CompletedTask;
-    }
-
-    private static string? FindCodexAumid()
-    {
-        var psi = new ProcessStartInfo
-        {
-            FileName = "powershell.exe",
-            Arguments = "-NoProfile -ExecutionPolicy Bypass -Command \"(Get-StartApps | Where-Object Name -like '*Codex*' | Select-Object -First 1).AppID\"",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-
-        using var process = Process.Start(psi);
-        if (process is null)
-        {
-            return null;
-        }
-
-        var output = process.StandardOutput.ReadToEnd().Trim();
-        process.WaitForExit(5000);
-        return output.Length == 0 ? null : output;
-    }
-
-    private static string? SafePath(Process process)
-    {
-        try
-        {
-            return process.MainModule?.FileName;
-        }
-        catch
-        {
-            return null;
-        }
+        return _launcher.LaunchAsync(cancellationToken);
     }
 }
