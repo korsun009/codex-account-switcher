@@ -11,6 +11,8 @@ public sealed record ApiEnvelope(bool Ok, string Message, object? Data = null, s
 
 public sealed record SwitchAccountRequest(string Account);
 
+public sealed record ExecuteDeckActionRequest(string Id, bool Confirmed);
+
 public sealed record AccountDto(string Name, string DisplayName, bool HasAuthJson, bool Active);
 
 public sealed record StatusDto(
@@ -25,5 +27,6 @@ public sealed record UsageDto(
     bool Success,
     CodexUsageWindow? FiveHour,
     CodexUsageWindow? Weekly,
+    IReadOnlyList<CodexUsageNamedWindow> Windows,
     DateTimeOffset? FetchedAt,
     string Message);

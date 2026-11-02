@@ -1,9 +1,16 @@
+import ast
 import os
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from bot_core import ACTION_ROUTES, ConfirmationStore, Settings, format_accounts, format_limits, format_response
+
+
+def test_public_app_source_is_valid_python():
+    source = Path(__file__).with_name("app.py").read_text(encoding="utf-8")
+    ast.parse(source)
 
 
 def test_configuration_has_no_default_owner_or_token():
@@ -24,6 +31,13 @@ def test_destructive_confirmation_is_one_time():
     store.issue(123, "shutdown")
     assert store.consume(123, "shutdown") is True
     assert store.consume(123, "shutdown") is False
+
+
+def test_custom_scenario_confirmation_is_one_time():
+    store = ConfirmationStore(45)
+    store.issue(123, "custom:open-work")
+    assert store.consume(123, "custom:open-work") is True
+    assert store.consume(123, "custom:open-work") is False
 
 
 def test_accounts_use_display_names_and_mark_active_profile():
@@ -55,6 +69,27 @@ def test_limits_are_compact_and_hide_error_details():
     assert "Test: ошибка" in text
     assert "token" not in text
     assert "sensitive" not in text
+
+
+def test_limits_render_dynamic_windows_without_empty_legacy_placeholders():
+    text = format_limits([
+        {
+            "name": "profile-1",
+            "displayName": "Free",
+            "success": True,
+            "fiveHour": None,
+            "weekly": None,
+            "windows": [
+                {"label": "30 дней", "percentLeft": 36, "resetAt": "2026-09-01T00:00:00Z"},
+                {"label": "GPT-5.3-Codex-Spark - неделя", "percentLeft": 100, "resetAt": None},
+            ],
+        }
+    ])
+
+    assert "30 дней: 36%, сброс 01.09 03:00" in text
+    assert "GPT-5.3-Codex-Spark - неделя: 100%" in text
+    assert "5 ч: нет данных" not in text
+    assert "Неделя: нет данных" not in text
 
 
 def test_status_is_rendered_in_russian():

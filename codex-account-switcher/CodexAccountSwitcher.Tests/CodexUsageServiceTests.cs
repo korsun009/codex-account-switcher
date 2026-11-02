@@ -104,6 +104,75 @@ public sealed class CodexUsageServiceTests : IDisposable
         Assert.Equal(80, result.Weekly?.PercentLeft);
     }
 
+    [Fact]
+    public async Task NetworkFailureReturnsSafeResultInsteadOfThrowing()
+    {
+        using var client = new HttpClient(new ThrowingHandler());
+        var service = new CodexUsageService(client);
+
+        var result = await service.FetchAsync(_authPath, CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Contains("не удалось", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("fake-access-token", result.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReturnsThirtyDayWindowInsteadOfTreatingValidFreePlanAsAnError()
+    {
+        var result = await FetchAsync("""
+            {
+              "plan_type": "free",
+              "rate_limit": {
+                "primary_window": {
+                  "used_percent": 64,
+                  "limit_window_seconds": 2592000,
+                  "reset_at": 1788800772
+                }
+              }
+            }
+            """);
+
+        Assert.True(result.Success);
+        var window = Assert.Single(result.Windows);
+        Assert.Equal("30 дней", window.Label);
+        Assert.Equal(36, window.PercentLeft);
+    }
+
+    [Fact]
+    public async Task KeepsNamedAdditionalRateLimits()
+    {
+        var result = await FetchAsync("""
+            {
+              "rate_limit": {
+                "primary_window": {
+                  "used_percent": 20,
+                  "limit_window_seconds": 604800,
+                  "reset_at": 1786932204
+                }
+              },
+              "additional_rate_limits": [
+                {
+                  "limit_name": "GPT-5.3-Codex-Spark",
+                  "rate_limit": {
+                    "primary_window": {
+                      "used_percent": 5,
+                      "limit_window_seconds": 604800,
+                      "reset_at": 1786932228
+                    }
+                  }
+                }
+              ]
+            }
+            """);
+
+        Assert.True(result.Success);
+        Assert.Collection(
+            result.Windows,
+            window => Assert.Equal("Неделя", window.Label),
+            window => Assert.Equal("GPT-5.3-Codex-Spark - неделя", window.Label));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))
@@ -126,6 +195,14 @@ public sealed class CodexUsageServiceTests : IDisposable
             {
                 Content = new StringContent(responseJson)
             });
+        }
+    }
+
+    private sealed class ThrowingHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            throw new HttpRequestException("Synthetic network failure with no credential data.");
         }
     }
 }

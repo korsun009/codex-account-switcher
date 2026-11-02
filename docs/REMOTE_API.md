@@ -17,6 +17,7 @@ CodexAccountSwitcher.exe --remote-api
 - Keep `CODEX_REMOTE_API_TOKEN` outside source control.
 - Do not commit `.env`, Telegram bot configuration, `auth.json`, profile snapshots, SQLite databases, logs, or generated build output.
 - API responses never include raw `auth.json`, bearer tokens, refresh tokens, account IDs, or full usage endpoint responses.
+- Custom-action responses expose metadata only. Executable paths, arguments, script paths, and PowerShell command text never leave Windows.
 - The Telegram bot is optional. A sanitized, environment-driven template is available in `integrations/telegram-bot/`.
 - The desktop **Remote control** page can store and test an external HTTPS connection with a DPAPI-protected token. It does not expose this listener or install a tunnel. See `docs/TELEGRAM_GUI_SETUP.md`.
 
@@ -66,6 +67,23 @@ Returns only the public service name and health state. It does not disclose the 
 ```
 
 These routes reuse the same local services as the desktop app. Account switching still creates backups and still switches only `auth.json`.
+
+`GET /limits` returns one bounded result per profile. Each successful profile includes a `windows` array with the names, remaining percentages, and reset times currently returned by Codex. Consumers must render this array dynamically rather than assuming only 5-hour and weekly windows.
+
+### Control Deck scenarios
+
+- `GET /actions`
+- `POST /actions/execute`
+
+`GET /actions` returns only remote-enabled scenario metadata: ID, display name, description, Alice aliases, confirmation requirement, and order. Targets and arguments remain local.
+
+`POST /actions/execute` body:
+
+```json
+{ "id": "open-explorer", "confirmed": true }
+```
+
+A scenario is remotely callable only after the user enables remote access, keeps mandatory confirmation enabled, and acknowledges the warning in Codex Control Deck. Unknown, local-only, or unconfirmed scenarios are rejected.
 
 ### V2RayTun helpers
 

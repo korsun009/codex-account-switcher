@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using CodexAccountSwitcher.Core;
+using CodexControlDeck.Core;
 using Microsoft.Win32;
 
 namespace CodexAccountSwitcher.Remote;
@@ -22,7 +23,9 @@ public sealed class RemoteApiServer
     private readonly ICodexProcessService _processService;
     private readonly CodexUsageService _usageService;
     private readonly ProfileCredentialStore _credentialStore;
+    private readonly RemoteUsageService _remoteUsageService;
     private readonly V2RayTunService _v2RayTunService;
+    private readonly DeckActionService _deckActionService;
 
     public RemoteApiServer(
         RemoteApiOptions options,
@@ -30,15 +33,19 @@ public sealed class RemoteApiServer
         AccountSwitcherService switcher,
         ICodexProcessService processService,
         CodexUsageService? usageService = null,
-        V2RayTunService? v2RayTunService = null)
+        V2RayTunService? v2RayTunService = null,
+        DeckActionService? deckActionService = null)
     {
         _options = options;
         _layout = layout;
         _switcher = switcher;
         _processService = processService;
         _usageService = usageService ?? new CodexUsageService();
-        _credentialStore = new ProfileCredentialStore(layout, new RealFileSystem());
+        var fileSystem = new RealFileSystem();
+        _credentialStore = new ProfileCredentialStore(layout, fileSystem);
+        _remoteUsageService = new RemoteUsageService(layout, switcher, fileSystem, _credentialStore, _usageService);
         _v2RayTunService = v2RayTunService ?? new V2RayTunService();
+        _deckActionService = deckActionService ?? new DeckActionService(new DeckActionStore());
         _listener.Prefixes.Add(options.Prefix);
     }
 
@@ -130,24 +137,28 @@ public sealed class RemoteApiServer
 
         if (request.HttpMethod == "GET" && path == "/limits")
         {
-            var usages = new List<UsageDto>();
-            foreach (var profile in _switcher.ListProfiles())
-            {
-                var isActive = string.Equals(profile.Name, _switcher.ReadActiveProfile(), StringComparison.OrdinalIgnoreCase);
-                if (isActive && !File.Exists(_layout.AuthJsonPath) || !isActive && !_credentialStore.HasCredentials(profile.Name))
-                {
-                    usages.Add(new UsageDto(profile.Name, profile.DisplayName, false, false, null, null, null, "auth.json is not saved for this profile."));
-                    continue;
-                }
+            var usages = await _remoteUsageService.FetchAllAsync(cancellationToken);
+            return ApiResult.Ok(ApiEnvelope.Success("Limits loaded.", usages));
+        }
 
-                var authDocument = isActive
-                    ? await File.ReadAllBytesAsync(_layout.AuthJsonPath, cancellationToken)
-                    : _credentialStore.Read(profile.Name);
-                var usage = await _usageService.FetchAsync(authDocument, cancellationToken);
-                usages.Add(new UsageDto(profile.Name, profile.DisplayName, true, usage.Success, usage.FiveHour, usage.Weekly, usage.FetchedAt, usage.Message));
+        if (request.HttpMethod == "GET" && path == "/actions")
+        {
+            var actions = await _deckActionService.GetRemoteMetadataAsync(cancellationToken);
+            return ApiResult.Ok(ApiEnvelope.Success("Actions loaded.", actions));
+        }
+
+        if (request.HttpMethod == "POST" && path == "/actions/execute")
+        {
+            var body = await ReadJsonAsync<ExecuteDeckActionRequest>(request, cancellationToken);
+            if (body is null || string.IsNullOrWhiteSpace(body.Id))
+            {
+                return ApiResult.BadRequest(ApiEnvelope.Failure("Request body must contain action id."));
             }
 
-            return ApiResult.Ok(ApiEnvelope.Success("Limits loaded.", usages));
+            var result = await _deckActionService.ExecuteRemoteAsync(body.Id, body.Confirmed, cancellationToken);
+            return result.Success
+                ? ApiResult.Ok(ApiEnvelope.Success(result.Message, result))
+                : ApiResult.BadRequest(ApiEnvelope.Failure(result.Message));
         }
 
         if (request.HttpMethod == "POST" && path == "/switch-account")

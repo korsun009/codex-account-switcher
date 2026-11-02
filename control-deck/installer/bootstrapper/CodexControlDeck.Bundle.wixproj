@@ -1,0 +1,16 @@
+<Project Sdk="WixToolset.Sdk/7.0.0">
+  <PropertyGroup>
+    <OutputType>Bundle</OutputType>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <ProductVersion Condition="'$(ProductVersion)' == ''">1.0.0</ProductVersion>
+    <MsiPath Condition="'$(MsiPath)' == ''">$(MSBuildThisFileDirectory)..\..\..\artifacts\control-deck\internal\win-$(Platform)\Codex-Control-Deck-$(ProductVersion)-$(Platform).msi</MsiPath>
+    <PublishDir Condition="'$(PublishDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\artifacts\control-deck\publish\win-$(Platform)</PublishDir>
+    <BundleUpgradeCode Condition="'$(Platform)' == 'x64'">4E6B0E89-09F8-452A-A12C-A9C1B9A5A211</BundleUpgradeCode>
+    <BundleUpgradeCode Condition="'$(Platform)' == 'x86'">81B33E56-D308-4F2E-A138-284D42C6D5CD</BundleUpgradeCode>
+    <DefineConstants>ProductVersion=$(ProductVersion);MsiPath=$(MsiPath);PublishDir=$(PublishDir);BundleUpgradeCode=$(BundleUpgradeCode)</DefineConstants>
+    <OutputName>Codex-Control-Deck-$(ProductVersion)</OutputName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Bal.wixext" Version="7.0.0" />
+  </ItemGroup>
+</Project>

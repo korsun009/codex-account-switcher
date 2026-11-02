@@ -11,7 +11,7 @@ Version 2.0.0 is a full Electron desktop rewrite with a hardened .NET backend, e
 - Verified migration from legacy plaintext profile credentials to `auth.dpapi`.
 - Backup validation and rollback protection before account replacement.
 - Detection, launch, and stop support for current Codex desktop processes.
-- 5-hour and weekly limits with reset times for every saved profile.
+- Dynamic named Codex limit windows with reset times for every saved profile.
 - Local SQLite storage for non-secret application state.
 - Optional authenticated Remote API for accounts, limits, Codex, V2RayTun, power, autologon diagnostics, and firewall setup.
 - Telegram buttons for Wake-on-LAN, status, account switching, limits, Codex start/stop, V2RayTun Proxy Mode, sleep, reboot, and shutdown.
@@ -19,6 +19,7 @@ Version 2.0.0 is a full Electron desktop rewrite with a hardened .NET backend, e
 - Stable in-app updater with separate check, download, and install actions.
 - Service connection management in the Remote GUI; connection tokens are protected by DPAPI.
 - Global status-pill alignment fix and responsive packaged-app geometry tests.
+- Optional native WinUI 3 Codex Control Deck with built-in tiles, no-code custom actions, dynamic Telegram/Alice scenarios, and metadata-only remote synchronization.
 
 ## Packages
 

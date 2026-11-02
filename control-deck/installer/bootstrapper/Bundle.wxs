@@ -1,0 +1,25 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+  <Bundle Name="Codex Control Deck"
+          Manufacturer="korsun009"
+          Version="$(var.ProductVersion)"
+          UpgradeCode="$(var.BundleUpgradeCode)"
+          IconSourceFile="$(var.PublishDir)\Assets\AppIcon.ico">
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication
+          Theme="hyperlinkLargeLicense"
+          LicenseUrl=""
+          LogoFile="$(var.PublishDir)\Assets\StoreLogo.png"
+          ShowVersion="yes"
+          SuppressOptionsUI="yes"
+          LaunchTarget="[ProgramFiles6432Folder]korsun009\Codex Control Deck\CodexControlDeck.exe"
+          LaunchWorkingFolder="[ProgramFiles6432Folder]korsun009\Codex Control Deck" />
+    </BootstrapperApplication>
+    <Chain>
+      <MsiPackage SourceFile="$(var.MsiPath)"
+                  Compressed="yes"
+                  Visible="no"
+                  Vital="yes" />
+    </Chain>
+  </Bundle>
+</Wix>

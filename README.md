@@ -7,7 +7,7 @@
 
 [Русский](docs/ru/README.md) | **English** | [中文](docs/zh/README.md)
 
-Codex Account Switcher is an open-source Windows desktop app for safely switching between multiple OpenAI Codex accounts, viewing 5-hour and weekly usage limits, and controlling Codex from an optional Telegram bot. It keeps one shared Codex Home for chats, projects, MCP servers, plugins, skills, and settings while changing only the active sign-in.
+Codex Account Switcher is an open-source Windows desktop app for safely switching between multiple OpenAI Codex accounts, viewing every usage window returned by Codex, and controlling Codex from optional Telegram and Alice integrations. It keeps one shared Codex Home for chats, projects, MCP servers, plugins, skills, and settings while changing only the active sign-in.
 
 ![Codex Account Switcher 2.0 settings screen](docs/images/codex-account-switcher-v2-settings.png)
 
@@ -30,12 +30,13 @@ Download assets from [GitHub Releases](https://github.com/korsun009/codex-accoun
 - Keep chats, projects, sessions, MCP servers, plugins, skills, and tool configuration shared in one `.codex` directory.
 - Encrypt saved profile credentials with Windows DPAPI for the current Windows user.
 - Validate `auth.json`, create an encrypted backup, and support rollback before replacing the live sign-in.
-- Show 5-hour and weekly Codex limits for all saved profiles without displaying bearer tokens.
+- Show all named Codex usage windows for every saved profile without displaying bearer tokens.
 - Find and start Codex desktop processes from installed and packaged Windows locations.
 - Store app settings and profile metadata in a local SQLite database.
 - Check, download, and install stable updates through three separate user actions.
 - Provide an optional authenticated Remote API and a button-first Telegram control plane.
 - Support automatic, dark, gray, and light themes.
+- Provide an optional native WinUI 3 **Codex Control Deck** for visual Windows, Codex, VPN, website, program, and PowerShell scenarios.
 
 ## Quick Start
 
@@ -62,9 +63,15 @@ See [SECURITY.md](SECURITY.md) for reporting and deployment boundaries.
 
 The app includes a sanitized direct-bot template in [`integrations/telegram-bot`](integrations/telegram-bot). A separate deployment repository, [codex-telegram-remote](https://github.com/korsun009/codex-telegram-remote), contains the recommended VPS bot, LAN gateway, reverse SSH tunnel, and systemd units.
 
-Available buttons cover PC status and Wake-on-LAN, accounts and limits, Codex start/stop, V2RayTun status/start/Proxy Mode/restart, sleep, reboot, and shutdown. Power actions require a short-lived one-time confirmation. The bot reads account names and limits from the current desktop API, so account additions and removals stay synchronized.
+Available buttons cover PC status and Wake-on-LAN, accounts and limits, Codex start/stop, V2RayTun status/start/Proxy Mode/restart, sleep, reboot, shutdown, and custom Control Deck scenarios. Power and remote custom actions require a short-lived one-time confirmation. The bot reads account names, named limit windows, and scenario metadata from the current desktop API, so changes stay synchronized.
 
 Use [the GUI and Telegram setup guide](docs/TELEGRAM_GUI_SETUP.md) and [Remote API reference](docs/REMOTE_API.md). Never expose the Windows Remote API directly to the public internet.
+
+## Codex Control Deck
+
+The optional native WinUI 3 companion app provides a visual, no-code action deck. Built-in tiles use the same authenticated Windows API as Telegram and Alice. User scenarios can open a program or website, run a `.ps1` file, or execute an explicitly acknowledged advanced PowerShell command. Remote metadata never includes executable paths, arguments, or command text.
+
+See [the Control Deck guide](control-deck/README.md) for setup, storage, security, and x64/x86 installer instructions.
 
 ## Updates
 
@@ -80,12 +87,14 @@ Requirements: Windows 10/11, PowerShell 7.4+, Node.js 22+, pnpm 11+, and .NET 8 
 
 ```powershell
 dotnet test .\codex-account-switcher\CodexAccountSwitcher.sln --configuration Release
+dotnet test .\control-deck\CodexControlDeck.Tests\CodexControlDeck.Tests.csproj --configuration Release
 Push-Location .\desktop
 pnpm install --frozen-lockfile
 pnpm typecheck
 pnpm test
 Pop-Location
 pwsh -File .\scripts\build-release.ps1
+pwsh -File .\control-deck\installer\build-installers.ps1
 ```
 
 The production build rejects unsigned executables by default. `-AllowUnsigned` is reserved for explicit local candidates and does not make them signed.

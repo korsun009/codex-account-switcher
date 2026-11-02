@@ -1,0 +1,14 @@
+<Project Sdk="WixToolset.Sdk/7.0.0">
+  <PropertyGroup>
+    <OutputType>Package</OutputType>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <ProductVersion Condition="'$(ProductVersion)' == ''">1.0.0</ProductVersion>
+    <PublishDir Condition="'$(PublishDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\artifacts\control-deck\publish\win-$(Platform)</PublishDir>
+    <UpgradeCode Condition="'$(Platform)' == 'x64'">8A60738A-6481-4B53-A77D-AF9164F976AA</UpgradeCode>
+    <UpgradeCode Condition="'$(Platform)' == 'x86'">274D187C-2DE5-4485-8B58-6A5B4DA9879C</UpgradeCode>
+    <DefineConstants>ProductVersion=$(ProductVersion);PublishDir=$(PublishDir);UpgradeCode=$(UpgradeCode);Architecture=$(Platform)</DefineConstants>
+    <OutputName>Codex-Control-Deck-$(ProductVersion)-$(Platform)</OutputName>
+    <!-- Microsoft.UI.Xaml binaries expose more language IDs than MSI's File.Language column accepts. -->
+    <SuppressIces>ICE03</SuppressIces>
+  </PropertyGroup>
+</Project>

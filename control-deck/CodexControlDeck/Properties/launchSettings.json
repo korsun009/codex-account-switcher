@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "CodexControlDeck (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "CodexControlDeck (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

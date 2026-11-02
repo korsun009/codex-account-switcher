@@ -87,7 +87,7 @@ class ConfirmationStore:
         self._values: dict[tuple[int, str], float] = {}
 
     def issue(self, user_id: int, action: str) -> None:
-        if action not in DESTRUCTIVE_ACTIONS:
+        if action not in DESTRUCTIVE_ACTIONS and not action.startswith("custom:"):
             raise ValueError("Confirmation is only available for destructive actions.")
         self._values[(user_id, action)] = time.monotonic() + self._ttl_seconds
 
@@ -149,10 +149,27 @@ def format_limits(data: Any) -> str:
         if not item.get("success"):
             lines.append(f"{name}: ошибка")
             continue
-        five_hour = _format_window("5 ч", item.get("fiveHour"))
-        weekly = _format_window("Неделя", item.get("weekly"))
-        lines.append(f"{name}: {five_hour}; {weekly}")
+        windows = _usage_windows(item)
+        if not windows:
+            lines.append(f"{name}: нет данных")
+            continue
+        lines.append(f"{name}: " + "; ".join(_format_window(label, value) for label, value in windows))
     return "\n".join(lines)[:3500]
+
+
+def _usage_windows(item: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    dynamic = item.get("windows")
+    if isinstance(dynamic, list) and dynamic:
+        return [
+            (str(window.get("label") or "Лимит"), window)
+            for window in dynamic
+            if isinstance(window, dict)
+        ]
+    return [
+        (label, value)
+        for label, value in (("5 ч", item.get("fiveHour")), ("Неделя", item.get("weekly")))
+        if isinstance(value, dict)
+    ]
 
 
 def _format_window(label: str, value: Any) -> str:

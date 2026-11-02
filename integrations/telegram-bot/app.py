@@ -15,6 +15,7 @@ CONFIRMATIONS = ConfirmationStore(SETTINGS.confirm_ttl_seconds)
 COMMAND_ACTIONS = {
     "status": "status",
     "accounts": "accounts",
+    "actions": "actions",
     "limits": "limits",
     "codex_start": "codex_start",
     "codex_stop": "codex_stop",
@@ -29,8 +30,9 @@ COMMAND_ACTIONS = {
 def keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("Статус ПК", callback_data="do:status"), InlineKeyboardButton("Аккаунты", callback_data="do:accounts")],
-        [InlineKeyboardButton("Лимиты Codex", callback_data="do:limits"), InlineKeyboardButton("Запустить Codex", callback_data="do:codex_start")],
-        [InlineKeyboardButton("Остановить Codex", callback_data="do:codex_stop"), InlineKeyboardButton("Включить ПК", callback_data="do:wake")],
+        [InlineKeyboardButton("Сценарии", callback_data="do:actions"), InlineKeyboardButton("Лимиты Codex", callback_data="do:limits")],
+        [InlineKeyboardButton("Запустить Codex", callback_data="do:codex_start"), InlineKeyboardButton("Остановить Codex", callback_data="do:codex_stop")],
+        [InlineKeyboardButton("Включить ПК", callback_data="do:wake")],
         [InlineKeyboardButton("VPN статус", callback_data="do:vpn_status"), InlineKeyboardButton("Запустить VPN", callback_data="do:vpn_start")],
         [InlineKeyboardButton("Proxy Mode", callback_data="do:vpn_proxy"), InlineKeyboardButton("Перезапустить VPN", callback_data="do:vpn_restart")],
         [InlineKeyboardButton("Сон", callback_data="do:sleep"), InlineKeyboardButton("Перезагрузка", callback_data="do:reboot")],
@@ -50,6 +52,20 @@ def accounts_keyboard(data: Any) -> InlineKeyboardMarkup:
                 continue
             label = ("✓ " if item.get("active") else "") + display_name
             rows.append([InlineKeyboardButton(label[:48], callback_data=f"switch:{profile_name}")])
+    rows.append([InlineKeyboardButton("Назад", callback_data="do:status")])
+    return InlineKeyboardMarkup(rows)
+
+
+def actions_keyboard(data: Any) -> InlineKeyboardMarkup:
+    rows = []
+    if isinstance(data, list):
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            action_id = item.get("id")
+            name = item.get("name")
+            if isinstance(action_id, str) and isinstance(name, str):
+                rows.append([InlineKeyboardButton(name[:48], callback_data=f"scenario:{action_id}")])
     rows.append([InlineKeyboardButton("Назад", callback_data="do:status")])
     return InlineKeyboardMarkup(rows)
 
@@ -92,6 +108,18 @@ async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             reply_markup=accounts_keyboard(payload.get("data")),
         )
         return
+    elif action == "actions":
+        payload, error = await request_remote("GET", "/actions")
+        if error or payload is None:
+            await query.edit_message_text(error or "Сервис временно недоступен.", reply_markup=keyboard())
+            return
+        data = payload.get("data")
+        count = len(data) if isinstance(data, list) else 0
+        await query.edit_message_text(
+            f"Сценарии: {count}. Выберите действие.",
+            reply_markup=actions_keyboard(data),
+        )
+        return
     else:
         text = await call_remote(action)
     await query.edit_message_text(text, reply_markup=keyboard())
@@ -108,6 +136,34 @@ async def switch_account(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await query.edit_message_text(text, reply_markup=keyboard())
 
 
+async def custom_action(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if not query or not authorized(update):
+        return
+    await query.answer()
+    _, action_id = (query.data or "scenario:").split(":", maxsplit=1)
+    payload, error = await request_remote("GET", "/actions")
+    data = payload.get("data") if payload else None
+    selected = next(
+        (item for item in data if isinstance(item, dict) and item.get("id") == action_id),
+        None,
+    ) if isinstance(data, list) else None
+    if error or selected is None:
+        await query.edit_message_text(error or "Сценарий больше не найден.", reply_markup=keyboard())
+        return
+    if selected.get("requiresConfirmation", True):
+        action = f"custom:{action_id}"
+        CONFIRMATIONS.issue(update.effective_user.id, action)
+        markup = InlineKeyboardMarkup([[
+            InlineKeyboardButton("Подтвердить", callback_data=f"confirm:{action}"),
+            InlineKeyboardButton("Отмена", callback_data="cancel:action"),
+        ]])
+        await query.edit_message_text(f"Подтвердите запуск «{selected.get('name', 'сценарий')}».", reply_markup=markup)
+        return
+    result, result_error = await request_remote("POST", "/actions/execute", {"id": action_id, "confirmed": True})
+    await query.edit_message_text(result_error or format_response("custom", result), reply_markup=keyboard())
+
+
 async def confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     if not query or not authorized(update):
@@ -119,6 +175,11 @@ async def confirm(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     if not CONFIRMATIONS.consume(update.effective_user.id, action):
         await query.edit_message_text("Подтверждение истекло.", reply_markup=keyboard())
+        return
+    if action.startswith("custom:"):
+        action_id = action.split(":", maxsplit=1)[1]
+        payload, error = await request_remote("POST", "/actions/execute", {"id": action_id, "confirmed": True})
+        await query.edit_message_text(error or format_response("custom", payload), reply_markup=keyboard())
         return
     await query.edit_message_text(await call_remote(action), reply_markup=keyboard())
 
@@ -177,6 +238,7 @@ def main() -> None:
         application.add_handler(CommandHandler(command, command_action, has_args=False))
     application.add_handler(CallbackQueryHandler(confirm, pattern=r"^(confirm|cancel):"))
     application.add_handler(CallbackQueryHandler(switch_account, pattern=r"^switch:"))
+    application.add_handler(CallbackQueryHandler(custom_action, pattern=r"^scenario:"))
     application.add_handler(CallbackQueryHandler(callback, pattern=r"^do:"))
     application.run_polling(drop_pending_updates=True)
 

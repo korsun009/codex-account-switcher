@@ -1,0 +1,61 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Codex Control Deck"
+           Manufacturer="korsun009"
+           Version="$(var.ProductVersion)"
+           UpgradeCode="$(var.UpgradeCode)"
+           Scope="perMachine"
+           Language="1049"
+           Codepage="65001"
+           InstallerVersion="500">
+    <MajorUpgrade DowngradeErrorMessage="Установлена более новая версия Codex Control Deck." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="ProductIcon.ico" SourceFile="$(var.PublishDir)\Assets\AppIcon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ProductIcon.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/korsun009/codex-account-switcher" />
+    <Property Id="ARPCONTACT" Value="korsun009" />
+
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="ManufacturerFolder" Name="korsun009">
+        <Directory Id="INSTALLFOLDER" Name="Codex Control Deck" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+    <StandardDirectory Id="DesktopFolder" />
+
+    <Feature Id="MainFeature" Title="Codex Control Deck" Level="1">
+      <ComponentGroupRef Id="ApplicationFiles" />
+      <ComponentRef Id="MainExecutable" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="ApplicationFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PublishDir)\**">
+        <Exclude Files="$(var.PublishDir)\**\*.pdb" />
+        <Exclude Files="$(var.PublishDir)\CodexControlDeck.exe" />
+      </Files>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <Component Id="MainExecutable" Directory="INSTALLFOLDER" Guid="*">
+      <File Id="MainExecutableFile"
+            Source="$(var.PublishDir)\CodexControlDeck.exe"
+            KeyPath="yes">
+        <Shortcut Id="StartMenuShortcut"
+                  Directory="ProgramMenuFolder"
+                  Name="Codex Control Deck"
+                  Description="Пульт управления Windows, Codex и VPN"
+                  Advertise="yes"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <Shortcut Id="DesktopShortcut"
+                  Directory="DesktopFolder"
+                  Name="Codex Control Deck"
+                  Description="Пульт управления Windows, Codex и VPN"
+                  Advertise="yes"
+                  WorkingDirectory="INSTALLFOLDER" />
+      </File>
+    </Component>
+  </Fragment>
+</Wix>
