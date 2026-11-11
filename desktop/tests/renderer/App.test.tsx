@@ -108,7 +108,7 @@ describe('App', () => {
     expect(await screen.findByRole('button', { name: 'Accounts' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument()
     expect(screen.getByLabelText('Interface language')).toHaveValue('en')
-    expect(document.documentElement.lang).toBe('en')
+    await waitFor(() => expect(document.documentElement.lang).toBe('en'))
     expect(invoke).toHaveBeenCalledWith('setLanguage', { language: 'en' })
   })
 
