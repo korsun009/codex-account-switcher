@@ -205,11 +205,16 @@ public sealed class AccountSwitcherService
         var backupDirectory = await CreateAccountFileBackupAsync(cancellationToken);
         _credentialStore.Write(profile.Name, authDocument);
         WriteActiveProfile(profile.Name);
-        var original = NormalizeSidebar(authDocument, authDocument, backupDirectory);
-        try { await _processService.LaunchCodexAsync(cancellationToken); }
+        byte[]? original = null;
+        try
+        {
+            original = NormalizeSidebar(authDocument, authDocument, backupDirectory);
+            await _processService.LaunchCodexAsync(cancellationToken);
+        }
         catch
         {
             if (original is not null) _fileSystem.WriteAllBytesAtomic(SidebarPath, original);
+            await _processService.LaunchCodexAsync(CancellationToken.None);
             throw;
         }
 
@@ -363,9 +368,10 @@ public sealed class AccountSwitcherService
         await _processService.StopCodexAsync(TimeSpan.FromSeconds(12), cancellationToken);
         var previous = _fileSystem.FileExists(_layout.AuthJsonPath) ? _fileSystem.ReadAllBytes(_layout.AuthJsonPath) : null;
         var rollback = await CreateAccountFileBackupAsync(cancellationToken);
-        var original = NormalizeSidebar(previous, authDocument, rollback);
+        byte[]? original = null;
         try
         {
+            original = NormalizeSidebar(previous, authDocument, rollback);
             _fileSystem.WriteAllBytesAtomic(_layout.AuthJsonPath, authDocument);
             await _processService.LaunchCodexAsync(cancellationToken);
         }
@@ -374,6 +380,7 @@ public sealed class AccountSwitcherService
             if (original is not null) _fileSystem.WriteAllBytesAtomic(SidebarPath, original);
             if (previous is null) _fileSystem.DeleteFile(_layout.AuthJsonPath);
             else _fileSystem.WriteAllBytesAtomic(_layout.AuthJsonPath, previous);
+            await _processService.LaunchCodexAsync(CancellationToken.None);
             throw;
         }
         return new SwitchResult(true, ReadActiveProfile(), $"auth.json восстановлен из {backupDirectory}", backupDirectory);

@@ -497,6 +497,63 @@ public sealed class AccountSwitcherServiceTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task EverySwitchFindsProjectsCreatedAfterThePreviousScanOnTheFirstTry()
+    {
+        AddProfiles("source", "target");
+        var payload = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("""{"https://api.openai.com/auth":{"chatgpt_user_id":"test"}}""")).TrimEnd('=');
+        string Auth(string account) => JsonSerializer.Serialize(new { tokens = new { account_id = account, id_token = $"x.{payload}.x" } });
+        static string Owner(string account) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            JsonSerializer.SerializeToUtf8Bytes(new[] { "test", account }))).ToLowerInvariant();
+        File.WriteAllText(_layout.AuthJsonPath, Auth("source"));
+        File.WriteAllText(_layout.ProfileAuthPath("source"), Auth("source"));
+        File.WriteAllText(_layout.ProfileAuthPath("target"), Auth("target"));
+        var path = Path.Combine(_root, ".codex-global-state.json");
+        var initial = """{"electron-account-renderer-state-v1":{"owner":"OWNER","inactive":{}},"electron-persisted-atom-state":{}}""";
+        File.WriteAllText(path, initial.Replace("OWNER", Owner("source")));
+        using var db = new Microsoft.Data.Sqlite.SqliteConnection("Pooling=False;Data Source=" + Path.Combine(_root, "state_5.sqlite"));
+        db.Open();
+        using var sql = db.CreateCommand();
+        sql.CommandText = """
+            PRAGMA journal_mode=WAL;
+            PRAGMA wal_autocheckpoint=0;
+            CREATE TABLE projects(id,name,metadata,position,created_at_ms,updated_at_ms);
+            CREATE TABLE project_roots(project_id,position,path);
+            CREATE TABLE project_idempotency_keys(key,project_id,created_at_ms);
+            CREATE TABLE threads(id,project_id);
+            """;
+        sql.ExecuteNonQuery();
+        Assert.True((await _service.SwitchToAsync("source", default)).Success);
+
+        // The UI has saved one project; the other only exists in committed WAL
+        // pages. The app-server assigned it a new ID with no legacy import key.
+        var active = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!;
+        active["local-projects"] = System.Text.Json.Nodes.JsonNode.Parse("""{"new-ui":{"id":"new-ui","name":"New UI","rootPaths":["X:/ui"]}}""");
+        active["electron-persisted-atom-state"]!["sidebar-custom-sections-v3"] = System.Text.Json.Nodes.JsonNode.Parse(
+            """{"source":{"sections":[{"id":"s","name":"Today","itemKeys":["codex:project:new-db","codex:project:new-ui"]}]}}""");
+        active["thread-project-assignments"] = System.Text.Json.Nodes.JsonNode.Parse("""{"ui-assignment":{"projectKind":"local","projectId":"new-db"}}""");
+        File.WriteAllText(path, active.ToJsonString());
+        sql.CommandText = """
+            BEGIN;
+            INSERT INTO projects VALUES ('new-db','New DB','{}',0,1,2);
+            INSERT INTO project_roots VALUES ('new-db',0,'X:/db');
+            INSERT INTO threads VALUES ('new-chat','new-db');
+            COMMIT;
+            """;
+        sql.ExecuteNonQuery();
+        Assert.True((await _service.SwitchToAsync("target", default)).Success);
+        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        var dest = doc.RootElement.GetProperty("electron-account-renderer-state-v1").GetProperty("inactive").GetProperty(Owner("target")).GetProperty("globals");
+        Assert.Equal(2, dest.GetProperty("local-projects").EnumerateObject().Count());
+        Assert.Equal("X:/ui", dest.GetProperty("local-projects").GetProperty("new-ui").GetProperty("rootPaths")[0].GetString());
+        Assert.Equal("X:/db", dest.GetProperty("local-projects").GetProperty("new-db").GetProperty("rootPaths")[0].GetString());
+        Assert.Equal("new-db", dest.GetProperty("thread-project-assignments").GetProperty("new-chat").GetProperty("projectId").GetString());
+        Assert.Equal("new-db", dest.GetProperty("thread-project-assignments").GetProperty("ui-assignment").GetProperty("projectId").GetString());
+        var target = doc.RootElement.GetProperty("electron-account-renderer-state-v1").GetProperty("inactive").GetProperty(Owner("target"));
+        var items = target.GetProperty("atoms").GetProperty("sidebar-custom-sections-v3").GetProperty("target").GetProperty("sections")[0].GetProperty("itemKeys");
+        Assert.Equal(new[] { "codex:project:new-db", "codex:project:new-ui" }, items.EnumerateArray().Select(x => x.GetString()));
+    }
+
     private string ReadProfileAuthText(string profileName)
     {
         return System.Text.Encoding.UTF8.GetString(new ProfileCredentialStore(_layout, _fileSystem).Read(profileName));

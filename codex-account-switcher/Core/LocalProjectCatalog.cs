@@ -67,11 +67,16 @@ internal sealed record LocalProjectCatalog(JsonObject Globals, JsonObject Atoms,
                 ["project-order"] = new JsonArray(projects.Select(p => (JsonNode?)JsonValue.Create(p.Key)).ToArray()),
                 ["app-server-project-id-by-legacy-project-id-by-host"] = new JsonObject { ["local:" + home] = mapping } }, atoms, serverIds);
         }
-        catch (SqliteException ex) when (ex.SqliteErrorCode is 1 or 5 or 6 or 14)
+        catch (SqliteException ex) when (ex.SqliteErrorCode == 1 &&
+            (ex.Message.Contains("no such table", StringComparison.OrdinalIgnoreCase) ||
+             ex.Message.Contains("no such column", StringComparison.OrdinalIgnoreCase)))
         {
-            // Older schemas, a busy database or an unavailable file can still
-            // recover their sidebar directly from the desktop snapshots.
+            // Older schemas keep the project index in the desktop snapshots.
             return null;
+        }
+        catch (SqliteException ex)
+        {
+            throw new IOException("Не удалось прочитать актуальный список проектов Codex. Проверь доступ к базе и повтори переключение.", ex);
         }
     }
 

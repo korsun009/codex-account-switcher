@@ -53,9 +53,9 @@ internal static class LocalSidebarTransfer
         var atoms = Object(target, "atoms");
         // The live account is authoritative for local sorting and moves. Older
         // snapshots only supply missing projects and their associated chats.
-        if (!active && from is not null && from.Owner == currentOwner)
-            Merge(state, Map(state, Atoms), from.Account, globals, atoms, to.Account, home);
         var catalog = LocalProjectCatalog.Read(home);
+        if (!active && from is not null && from.Owner == currentOwner)
+            Merge(state, Map(state, Atoms), from.Account, globals, atoms, to.Account, home, catalog: catalog);
         foreach (var (owner, value) in inactive.OrderByDescending(pair => pair.Value is JsonObject view ? Map(Map(view, "globals"), "local-projects").Count : 0))
         {
             if (owner == to.Owner || value is not JsonObject snapshot) continue;
@@ -119,7 +119,7 @@ internal static class LocalSidebarTransfer
         var donorIds = Map(Map(state, migrations), hostKey);
         foreach (var (id, node) in Map(state, "local-projects"))
         {
-            if (catalog is not null && Text(donorIds[id]) is { } serverId && !catalog.ServerIds.Contains(serverId)) continue;
+            if (missingOnly && catalog is not null && Text(donorIds[id]) is { } serverId && !catalog.ServerIds.Contains(serverId)) continue;
             if (node is not JsonObject project || Text(project["id"]) != id ||
                 id.StartsWith("g-p-", StringComparison.Ordinal) || project["chatGptBacking"] is not null ||
                 project["chatGptBackingCreation"] is not null || project["retiredChatGptBacking"] is not null ||
@@ -134,6 +134,10 @@ internal static class LocalSidebarTransfer
                 if (project.ContainsKey(field)) record[field] = project[field]?.DeepClone();
         }
         bool restoreLooseChats = missingOnly && Map(Map(atoms, Sections), targetAccount)["sections"] is not JsonArray { Count: > 0 };
+        // The renderer may already reference a newly committed project in its
+        // sections before writing the project record into its own cache.
+        bool InFreshCatalog(string id) => !missingOnly && catalog is not null &&
+            (Map(catalog.Globals, "local-projects").ContainsKey(id) || catalog.ServerIds.Contains(id));
 
         var assignments = new HashSet<string>(StringComparer.Ordinal);
         var changedAssignments = new List<string>();
@@ -142,7 +146,8 @@ internal static class LocalSidebarTransfer
         foreach (var (id, value) in Map(state, "thread-project-assignments"))
         {
             if (value is not JsonObject entry || Text(entry["projectKind"]) != "local" ||
-                !eligible.Contains(Text(entry["projectId"]) ?? "") || Text(hosts[id]) is not (null or "local")) continue;
+                Text(entry["projectId"]) is not { } projectId || (!eligible.Contains(projectId) && !InFreshCatalog(projectId)) ||
+                Text(hosts[id]) is not (null or "local")) continue;
             if (missingOnly && (Map(globals, "thread-project-assignments").ContainsKey(id) || explicitlyProjectless.Contains(id))) continue;
             assignments.Add(id);
             if (!JsonNode.DeepEquals(Map(globals, "thread-project-assignments")[id], entry))
@@ -150,8 +155,9 @@ internal static class LocalSidebarTransfer
             Object(globals, "thread-project-assignments")[id] = entry.DeepClone();
         }
         if (missingOnly && projects.Count == 0 && assignments.Count == 0 && !restoreLooseChats) return;
-        CopyMap(state, globals, "project-appearances", projects.Contains);
-        CopyMap(state, globals, "sidebar-project-thread-orders", projects.Contains);
+        bool HasProject(string id) => projects.Contains(id) || InFreshCatalog(id);
+        CopyMap(state, globals, "project-appearances", HasProject);
+        CopyMap(state, globals, "sidebar-project-thread-orders", HasProject);
         CopyMap(state, globals, "thread-project-membership-host-ids", assignments.Contains);
         if (globals["projectless-thread-ids"] is JsonArray projectless)
             globals["projectless-thread-ids"] = ToArray(Strings(projectless).Where(id => !assignments.Contains(id)));
@@ -168,11 +174,11 @@ internal static class LocalSidebarTransfer
         bool IsLocalItem(string key) => (key.StartsWith("codex:thread:local:", StringComparison.Ordinal) &&
             (!missingOnly || restoreLooseChats || assignments.Contains(key["codex:thread:local:".Length..]))) ||
             (key.StartsWith("codex:project:", StringComparison.Ordinal) &&
-             (restoreLooseChats ? eligible : projects).Contains(key["codex:project:".Length..]));
-        bool IsKnownItem(string key) => key.StartsWith("codex:project:", StringComparison.Ordinal) ? IsLocalItem(key) :
+             ((restoreLooseChats ? eligible : projects).Contains(key["codex:project:".Length..]) || InFreshCatalog(key["codex:project:".Length..])));
+        bool IsKnownItem(string key) => key.StartsWith("codex:project:", StringComparison.Ordinal) ? projects.Contains(key["codex:project:".Length..]) :
             key.StartsWith("codex:thread:local:", StringComparison.Ordinal) && assignments.Contains(key["codex:thread:local:".Length..]);
-        MergeOrder(state, globals, "project-order", projects.Contains);
-        MergeOrder(state, globals, "pinned-project-ids", projects.Contains, projects.Contains);
+        MergeOrder(state, globals, "project-order", HasProject, append: missingOnly);
+        MergeOrder(state, globals, "pinned-project-ids", HasProject, projects.Contains);
         MergeOrder(sourceAtoms, atoms, "unified-sidebar-project-order-v1", IsLocalItem);
         MergeOrder(sourceAtoms, atoms, "unified-sidebar-pinned-order-v1", IsLocalItem, IsKnownItem);
         if (!missingOnly || atoms["flat-project-sidebar-preferences-v1"] is null)
@@ -267,11 +273,14 @@ internal static class LocalSidebarTransfer
             if (accept(id)) Object(dest, key)[id] = value?.DeepClone();
     }
 
-    private static void MergeOrder(JsonObject source, JsonObject dest, string key, Func<string, bool> accept, Func<string, bool>? replace = null)
+    private static void MergeOrder(JsonObject source, JsonObject dest, string key, Func<string, bool> accept, Func<string, bool>? replace = null, bool append = false)
     {
         if (source[key] is not JsonArray array) return;
         var incoming = Strings(array).Where(accept).ToList();
         if (incoming.Count > 0 || (replace is not null && dest[key] is JsonArray))
-            dest[key] = ToArray(incoming.Concat(Strings(dest[key]).Where(id => replace?.Invoke(id) != true)));
+        {
+            var existing = Strings(dest[key]).Where(id => replace?.Invoke(id) != true);
+            dest[key] = ToArray(append ? existing.Concat(incoming) : incoming.Concat(existing));
+        }
     }
 }
