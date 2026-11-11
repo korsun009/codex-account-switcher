@@ -44,7 +44,7 @@
     "accounts": {
       "eyebrow": "Рабочее пространство",
       "title": "Аккаунты Codex",
-      "description": "Переключение меняет только штатный файл входа. Чаты, проекты и MCP остаются общими.",
+      "description": "При переключении профиля локальные проекты и чаты автоматически возвращаются в свои разделы.",
       "newLogin": "Новый вход",
       "addTitle": "Добавить аккаунт",
       "addDescription": "Создайте профиль, затем сохраните в него текущий вход Codex.",
@@ -221,7 +221,7 @@
     "accounts": {
       "eyebrow": "Workspace",
       "title": "Codex accounts",
-      "description": "Switching changes only the standard sign-in file. Chats, projects, and MCP remain shared.",
+      "description": "Switching profiles automatically restores local projects and chats to their sidebar sections.",
       "newLogin": "New sign-in",
       "addTitle": "Add account",
       "addDescription": "Create a profile, then save the current Codex sign-in to it.",
@@ -398,7 +398,7 @@
     "accounts": {
       "eyebrow": "工作区",
       "title": "Codex 账户",
-      "description": "切换只会更改标准登录文件。聊天、项目和 MCP 保持共享。",
+      "description": "切换配置文件时，本地项目和聊天会自动恢复到原来的侧边栏分组。",
       "newLogin": "新登录",
       "addTitle": "添加账户",
       "addDescription": "创建配置文件，然后将当前 Codex 登录保存到其中。",

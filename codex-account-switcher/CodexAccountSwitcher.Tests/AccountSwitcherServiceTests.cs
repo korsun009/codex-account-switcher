@@ -341,12 +341,147 @@ public sealed class AccountSwitcherServiceTests : IDisposable
         Assert.False(_service.VerifyAuthBackup(backup));
     }
 
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task SwitchCarriesLocalProjectsAndStackToTarget(bool failLaunch, bool knownTarget)
+    {
+        AddProfiles("acc1", "acc2");
+        static string Auth(string account)
+        {
+            var claims = JsonSerializer.SerializeToUtf8Bytes(new Dictionary<string, object> {
+                ["https://api.openai.com/auth"] = new { chatgpt_user_id = "user-test" }
+            });
+            return JsonSerializer.Serialize(new { tokens = new { account_id = account,
+                id_token = "header." + Convert.ToBase64String(claims).TrimEnd('=').Replace('+', '-').Replace('/', '_') + ".unused" } });
+        }
+
+        static string Owner(string account) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            JsonSerializer.SerializeToUtf8Bytes(new[] { "user-test", account }))).ToLowerInvariant();
+
+        File.WriteAllText(_layout.AuthJsonPath, Auth("source"));
+        File.WriteAllText(_layout.ProfileAuthPath("acc2"), Auth("dest"));
+        var statePath = Path.Combine(_root, ".codex-global-state.json");
+        var original = """
+        {
+          "electron-account-renderer-state-v1":{"owner":"OWNER","inactive":{"DEST":{"atoms":{"draft":"target","sidebar-custom-sections-v3":{"dest":{"sections":[{"id":"different","hostSectionIds":{"local":"server-s"},"itemKeys":["codex:project:ordinary","chatgpt:project:target"]}]}}},"globals":{"projectless-thread-ids":["t","unrelated"],"app-server-projects-migration-by-host":{"HOST":{"version":1,"threadAssignmentsMigrated":true,"threadAssignmentsReadMigrated":true}}}}}},
+          "local-projects":{"ordinary":{"id":"ordinary","rootPaths":["D:/a"]},"in-stack":{"id":"in-stack","rootPaths":["D:/b"]},"cloud":{"id":"cloud","chatGptBacking":{},"rootPaths":[]}},
+          "thread-project-assignments":{"t":{"projectKind":"local","projectId":"in-stack"}},
+          "electron-persisted-atom-state":{"draft":"private","unified-sidebar-project-order-v1":["codex:project:ordinary","codex:project:in-stack","chatgpt:project:external"],
+            "sidebar-custom-sections-v3":{"source":{"sections":[{"id":"s","name":"Tasks","hostSectionIds":{"local":"server-s"},"itemKeys":["codex:project:in-stack","codex:thread:local:t","chatgpt:project:external"]}],"sectionOrder":["custom:s"]}}}
+        }
+        """.Replace("OWNER", Owner("source")).Replace("DEST", Owner("dest"))
+            .Replace("HOST", JsonEncodedText.Encode("local:" + _root).ToString());
+        if (!knownTarget)
+        {
+            var firstVisit = System.Text.Json.Nodes.JsonNode.Parse(original)!;
+            firstVisit["electron-account-renderer-state-v1"]!["inactive"]!.AsObject().Clear();
+            original = firstVisit.ToJsonString();
+        }
+        File.WriteAllText(statePath, original);
+        _processService.ThrowOnLaunch = failLaunch;
+        var result = await _service.SwitchToAsync("acc2", CancellationToken.None);
+        Assert.Equal(!failLaunch, result.Success);
+        if (failLaunch)
+        {
+            Assert.Equal(original, File.ReadAllText(statePath));
+            return;
+        }
+        using var doc = JsonDocument.Parse(File.ReadAllText(statePath));
+        var target = doc.RootElement.GetProperty("electron-account-renderer-state-v1").GetProperty("inactive").GetProperty(Owner("dest"));
+        var projects = target.GetProperty("globals").GetProperty("local-projects");
+        Assert.True(projects.TryGetProperty("ordinary", out _));
+        Assert.True(projects.TryGetProperty("in-stack", out _));
+        Assert.False(projects.TryGetProperty("cloud", out _));
+        Assert.Equal("in-stack", target.GetProperty("globals").GetProperty("thread-project-assignments").GetProperty("t").GetProperty("projectId").GetString());
+        var stack = target.GetProperty("atoms").GetProperty("sidebar-custom-sections-v3").GetProperty("dest").GetProperty("sections")[0];
+        Assert.DoesNotContain("external", target.GetRawText());
+        if (!knownTarget)
+        {
+            Assert.False(target.GetProperty("atoms").TryGetProperty("draft", out _));
+            Assert.Equal("s", stack.GetProperty("id").GetString());
+            Assert.Equal(2, stack.GetProperty("itemKeys").GetArrayLength());
+            return;
+        }
+        Assert.Equal("target", target.GetProperty("atoms").GetProperty("draft").GetString());
+        Assert.Equal("different", stack.GetProperty("id").GetString());
+        Assert.Equal(new[] { "codex:project:in-stack", "codex:thread:local:t", "chatgpt:project:target" }, stack.GetProperty("itemKeys").EnumerateArray().Select(x => x.GetString()));
+        var globals = target.GetProperty("globals");
+        Assert.Equal(new[] { "unrelated" }, globals.GetProperty("projectless-thread-ids").EnumerateArray().Select(x => x.GetString()));
+        var migration = globals.GetProperty("app-server-projects-migration-by-host").GetProperty("local:" + _root);
+        Assert.False(migration.GetProperty("threadAssignmentsMigrated").GetBoolean());
+        Assert.Equal("t", migration.GetProperty("pendingThreadAssignmentIds")[0].GetString());
+    }
+
+
     public void Dispose()
     {
         if (Directory.Exists(_root))
         {
             Directory.Delete(_root, recursive: true);
         }
+    }
+
+    [Theory]
+    [InlineData("switch")]
+    [InlineData("capture")]
+    [InlineData("restore")]
+    [InlineData("database")]
+    public async Task ReconnectingAnEmptySidebarRecoversProjectsFromAnotherSnapshot(string operation)
+    {
+        AddProfiles("current");
+        var payload = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("""{"https://api.openai.com/auth":{"chatgpt_user_id":"fixture"}}""")).TrimEnd('=');
+        var auth = JsonSerializer.Serialize(new { tokens = new { account_id = "current", id_token = $"h.{payload}.s" } });
+        File.WriteAllText(_layout.AuthJsonPath, auth);
+        File.WriteAllText(_layout.ProfileAuthPath("current"), auth);
+        static string Owner(string id) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            JsonSerializer.SerializeToUtf8Bytes(new[] { "fixture", id }))).ToLowerInvariant();
+        var path = Path.Combine(_root, ".codex-global-state.json");
+        File.WriteAllText(path, """
+            {"electron-persisted-atom-state":{"draft":"keep"},"electron-account-renderer-state-v1":{"owner":"ACTIVE","inactive":{"DONOR":{
+            "atoms":{"sidebar-custom-sections-v3":{"old":{"sections":[{"id":"stack","name":"Work","itemKeys":["codex:project:local-a","chatgpt:project:skip"]}]}}},
+            "globals":{"local-projects":{"local-a":{"id":"local-a","name":"Tools","rootPaths":["X:/tools"]}},"thread-project-assignments":{"t":{"projectKind":"local","projectId":"local-a"}}}}}}}
+            """.Replace("ACTIVE", Owner("current")).Replace("DONOR", Owner("old")));
+        if (operation == "database")
+        {
+            var empty = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!;
+            empty["electron-account-renderer-state-v1"]!["inactive"]!.AsObject().Clear();
+            File.WriteAllText(path, empty.ToJsonString());
+            using var database = new Microsoft.Data.Sqlite.SqliteConnection("Pooling=False;Data Source=" + Path.Combine(_root, "state_5.sqlite"));
+            database.Open();
+            using var cmd = database.CreateCommand();
+            cmd.CommandText = """
+                CREATE TABLE projects(id,name,metadata,position,created_at_ms,updated_at_ms);
+                CREATE TABLE project_roots(project_id,position,path);
+                CREATE TABLE project_idempotency_keys(key,project_id,created_at_ms);
+                CREATE TABLE threads(id,project_id,thread_section_id,archived,section_position,section_entered_at_ms,is_pinned);
+                CREATE TABLE thread_sections(id,name,appearance);
+                INSERT INTO projects VALUES ('server-p','Tools','{}',0,1,2),('cloud','Private','{"codex.chatGptBacking":"cloud"}',1,1,2);
+                INSERT INTO project_roots VALUES ('server-p',0,'X:/tools');
+                INSERT INTO project_idempotency_keys VALUES ('local-a','server-p',1);
+                INSERT INTO threads VALUES ('t','server-p','s',0,0,0,1);
+                INSERT INTO thread_sections VALUES ('s','Work',NULL);
+                """;
+            cmd.ExecuteNonQuery();
+        }
+        var result = operation switch
+        {
+            "switch" or "database" => await _service.SwitchToAsync("current", default),
+            "capture" => await _service.CaptureCurrentAuthAsProfileAsync("current", default),
+            _ => await _service.RestoreAuthBackupAsync(await _service.CreateAccountFileBackupAsync(default), default)
+        };
+        Assert.True(result.Success);
+        using var state = JsonDocument.Parse(File.ReadAllText(path));
+        var root = state.RootElement;
+        Assert.Equal("Tools", root.GetProperty("local-projects").GetProperty("local-a").GetProperty("name").GetString());
+        Assert.Equal("local-a", root.GetProperty("thread-project-assignments").GetProperty("t").GetProperty("projectId").GetString());
+        var atoms = root.GetProperty("electron-persisted-atom-state");
+        Assert.Equal("keep", atoms.GetProperty("draft").GetString());
+        var stack = atoms.GetProperty("sidebar-custom-sections-v3").GetProperty("current").GetProperty("sections")[0];
+        Assert.False(root.GetProperty("local-projects").TryGetProperty("cloud", out _));
+        var expectedKey = operation == "database" ? "codex:thread:local:t" : "codex:project:local-a";
+        Assert.Equal(new[] { expectedKey }, stack.GetProperty("itemKeys").EnumerateArray().Select(x => x.GetString()));
     }
 
     private void AddProfiles(params string[] names)

@@ -32,7 +32,7 @@ const emptyData: BootstrapData = {
   profiles: [],
   limits: [],
   diagnostics: {
-    backendVersion: '2.0.0',
+    backendVersion: '2.1.0',
     codexHome: null,
     codexShells: 0,
     codexAppServers: 0,

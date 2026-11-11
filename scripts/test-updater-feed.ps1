@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)] [string]$StageRoot,
-    [string]$SimulatedVersion = "2.0.1",
+    [string]$SimulatedVersion = "2.1.1",
     [int]$FeedPort = 19400,
     [int]$CdpPort = 19401
 )
@@ -16,7 +16,7 @@ $stage = (Resolve-Path -LiteralPath $StageRoot).Path
 $release = Join-Path $stage "desktop\release"
 $application = Join-Path $release "win-unpacked\Codex Account Switcher.exe"
 $metadata = Join-Path $release "latest.yml"
-$installer = Get-Item -LiteralPath (Join-Path $release "Codex-Account-Switcher-2.0.0-Setup.exe") -ErrorAction SilentlyContinue
+$installer = Get-Item -LiteralPath (Join-Path $release "Codex-Account-Switcher-2.1.0-Setup.exe") -ErrorAction SilentlyContinue
 if (-not (Test-Path -LiteralPath $application) -or -not (Test-Path -LiteralPath $metadata) -or $null -eq $installer) {
     throw "Packaged application, latest.yml, or installer is missing under $release"
 }
@@ -111,7 +111,7 @@ try {
 
     [pscustomobject]@{
         Result = "passed"
-        CurrentVersion = "2.0.0"
+        CurrentVersion = "2.1.0"
         AvailableVersion = $SimulatedVersion
         Feed = $feedUrl
         DownloadVerifiedBySha512 = $true

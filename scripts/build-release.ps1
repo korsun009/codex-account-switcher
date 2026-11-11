@@ -99,11 +99,11 @@ try {
 
 $stageRelease = Join-Path $desktopStage "release"
 $requiredPackages = @(
-    "Codex-Account-Switcher-2.0.0-Setup.exe",
-    "Codex-Account-Switcher-2.0.0-x64-Setup.exe",
-    "Codex-Account-Switcher-2.0.0-ia32-Setup.exe",
-    "Codex-Account-Switcher-2.0.0-x64-Setup.msi",
-    "Codex-Account-Switcher-2.0.0-ia32-Setup.msi"
+    "Codex-Account-Switcher-2.1.0-Setup.exe",
+    "Codex-Account-Switcher-2.1.0-x64-Setup.exe",
+    "Codex-Account-Switcher-2.1.0-ia32-Setup.exe",
+    "Codex-Account-Switcher-2.1.0-x64-Setup.msi",
+    "Codex-Account-Switcher-2.1.0-ia32-Setup.msi"
 )
 foreach ($name in $requiredPackages) {
     if (-not (Test-Path -LiteralPath (Join-Path $stageRelease $name))) {
@@ -120,7 +120,7 @@ foreach ($entry in $unpackedByArchitecture.GetEnumerator()) {
     if (-not (Test-Path -LiteralPath $executable)) {
         throw "Packaged application executable was not produced for $($entry.Key)."
     }
-    $zipPath = Join-Path $stageRelease "Codex-Account-Switcher-2.0.0-$($entry.Key)-Portable.zip"
+    $zipPath = Join-Path $stageRelease "Codex-Account-Switcher-2.1.0-$($entry.Key)-Portable.zip"
     Compress-Archive -Path (Join-Path $entry.Value "*") -DestinationPath $zipPath -CompressionLevel Optimal -Force
 }
 
@@ -129,9 +129,9 @@ if (-not (Test-Path -LiteralPath $updateMetadata)) {
     throw "Updater metadata latest.yml was not produced."
 }
 $requiredBlockMaps = @(
-    "Codex-Account-Switcher-2.0.0-Setup.exe.blockmap",
-    "Codex-Account-Switcher-2.0.0-x64-Setup.exe.blockmap",
-    "Codex-Account-Switcher-2.0.0-ia32-Setup.exe.blockmap"
+    "Codex-Account-Switcher-2.1.0-Setup.exe.blockmap",
+    "Codex-Account-Switcher-2.1.0-x64-Setup.exe.blockmap",
+    "Codex-Account-Switcher-2.1.0-ia32-Setup.exe.blockmap"
 )
 foreach ($name in $requiredBlockMaps) {
     if (-not (Test-Path -LiteralPath (Join-Path $stageRelease $name))) {
@@ -175,8 +175,8 @@ foreach ($pattern in $knownReleasePatterns) {
 }
 
 $releaseAssetNames = @($requiredPackages) + @($requiredBlockMaps) + @(
-    "Codex-Account-Switcher-2.0.0-x64-Portable.zip",
-    "Codex-Account-Switcher-2.0.0-ia32-Portable.zip",
+    "Codex-Account-Switcher-2.1.0-x64-Portable.zip",
+    "Codex-Account-Switcher-2.1.0-ia32-Portable.zip",
     "latest.yml"
 )
 $publishedAssets = @()

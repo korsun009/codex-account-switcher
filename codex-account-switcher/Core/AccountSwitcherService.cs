@@ -107,6 +107,8 @@ public sealed class AccountSwitcherService
     public async Task<SwitchResult> SwitchToAsync(string profileName, CancellationToken cancellationToken)
     {
         EnsureRuntimeDirectories();
+        using var heldLock = TryLockProfileChange();
+        if (heldLock is null) return ProfileBusy;
         EnsureCodexHomeExists();
         var profiles = LoadProfileDefinitions();
         var profile = EnsureKnownProfile(profileName, profiles);
@@ -134,6 +136,7 @@ public sealed class AccountSwitcherService
 
         byte[]? previousAuth = null;
         byte[]? previousMarker = null;
+        byte[]? previousSidebar = null;
         string? backupDirectory = null;
         var stopped = false;
         try
@@ -155,6 +158,7 @@ public sealed class AccountSwitcherService
             }
 
             backupDirectory = await CreateAccountFileBackupAsync(cancellationToken);
+            previousSidebar = NormalizeSidebar(previousAuth, targetBytes, backupDirectory);
             _fileSystem.WriteAllBytesAtomic(_layout.AuthJsonPath, targetBytes);
             AuthDocumentValidator.Validate(_fileSystem.ReadAllBytes(_layout.AuthJsonPath));
             WriteActiveProfile(profile.Name);
@@ -162,14 +166,15 @@ public sealed class AccountSwitcherService
 
             return new SwitchResult(true, profile.Name, $"Переключено на «{profile.DisplayName}». Резервная копия: {backupDirectory}", backupDirectory);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (stopped || ex is not OperationCanceledException)
         {
             if (stopped)
             {
+                if (previousSidebar is not null) _fileSystem.WriteAllBytesAtomic(SidebarPath, previousSidebar);
                 RestoreSwitchState(previousAuth, previousMarker);
                 try
                 {
-                    await _processService.LaunchCodexAsync(cancellationToken);
+                    await _processService.LaunchCodexAsync(CancellationToken.None);
                 }
                 catch
                 {
@@ -184,6 +189,8 @@ public sealed class AccountSwitcherService
     public async Task<SwitchResult> CaptureCurrentAuthAsProfileAsync(string profileName, CancellationToken cancellationToken)
     {
         EnsureRuntimeDirectories();
+        using var heldLock = TryLockProfileChange();
+        if (heldLock is null) return ProfileBusy;
         EnsureCodexHomeExists();
         var profile = EnsureKnownProfile(profileName, LoadProfileDefinitions());
 
@@ -198,7 +205,13 @@ public sealed class AccountSwitcherService
         var backupDirectory = await CreateAccountFileBackupAsync(cancellationToken);
         _credentialStore.Write(profile.Name, authDocument);
         WriteActiveProfile(profile.Name);
-        await _processService.LaunchCodexAsync(cancellationToken);
+        var original = NormalizeSidebar(authDocument, authDocument, backupDirectory);
+        try { await _processService.LaunchCodexAsync(cancellationToken); }
+        catch
+        {
+            if (original is not null) _fileSystem.WriteAllBytesAtomic(SidebarPath, original);
+            throw;
+        }
 
         return new SwitchResult(true, profile.Name, $"Текущий auth.json сохранён как «{profile.DisplayName}». Резервная копия: {backupDirectory}", backupDirectory);
     }
@@ -206,6 +219,8 @@ public sealed class AccountSwitcherService
     public async Task<SwitchResult> PrepareCleanLoginAsync(CancellationToken cancellationToken)
     {
         EnsureRuntimeDirectories();
+        using var heldLock = TryLockProfileChange();
+        if (heldLock is null) return ProfileBusy;
         EnsureCodexHomeExists();
 
         var activeProfile = ReadValidatedActiveProfile(out var activeProfileError);
@@ -326,6 +341,9 @@ public sealed class AccountSwitcherService
     public async Task<SwitchResult> RestoreAuthBackupAsync(string backupDirectory, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        EnsureRuntimeDirectories();
+        using var heldLock = TryLockProfileChange();
+        if (heldLock is null) return ProfileBusy;
         PathSafety.EnsurePathInside(backupDirectory, _layout.BackupsDirectory);
         if (!VerifyAuthBackup(backupDirectory))
         {
@@ -343,8 +361,21 @@ public sealed class AccountSwitcherService
             : _fileSystem.ReadAllBytes(legacyBackup);
         AuthDocumentValidator.Validate(authDocument);
         await _processService.StopCodexAsync(TimeSpan.FromSeconds(12), cancellationToken);
-        _fileSystem.WriteAllBytesAtomic(_layout.AuthJsonPath, authDocument);
-        await _processService.LaunchCodexAsync(cancellationToken);
+        var previous = _fileSystem.FileExists(_layout.AuthJsonPath) ? _fileSystem.ReadAllBytes(_layout.AuthJsonPath) : null;
+        var rollback = await CreateAccountFileBackupAsync(cancellationToken);
+        var original = NormalizeSidebar(previous, authDocument, rollback);
+        try
+        {
+            _fileSystem.WriteAllBytesAtomic(_layout.AuthJsonPath, authDocument);
+            await _processService.LaunchCodexAsync(cancellationToken);
+        }
+        catch
+        {
+            if (original is not null) _fileSystem.WriteAllBytesAtomic(SidebarPath, original);
+            if (previous is null) _fileSystem.DeleteFile(_layout.AuthJsonPath);
+            else _fileSystem.WriteAllBytesAtomic(_layout.AuthJsonPath, previous);
+            throw;
+        }
         return new SwitchResult(true, ReadActiveProfile(), $"auth.json восстановлен из {backupDirectory}", backupDirectory);
     }
 
@@ -400,6 +431,32 @@ public sealed class AccountSwitcherService
         {
             _fileSystem.CreateDirectory(_layout.ProfileDirectory(profile.Name));
         }
+    }
+
+    private string SidebarPath => Path.Combine(_layout.CodexHome, ".codex-global-state.json");
+
+    private static SwitchResult ProfileBusy => new(false, null, "Уже выполняется переключение профиля.", null);
+
+    private FileStream? TryLockProfileChange()
+    {
+        try
+        {
+            // GUI and Remote API can run in different processes for the same home.
+            return new FileStream(Path.Combine(_layout.ProfilesDirectory, "switch.lock"),
+                FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.DeleteOnClose);
+        }
+        catch (IOException ex) when ((ex.HResult & 0xffff) is 32 or 33) { return null; }
+    }
+
+    private byte[]? NormalizeSidebar(byte[]? previousAuth, byte[] targetAuth, string backup)
+    {
+        if (!_fileSystem.FileExists(SidebarPath)) return null;
+        var original = _fileSystem.ReadAllBytes(SidebarPath);
+        var updated = LocalSidebarTransfer.Prepare(original, previousAuth, targetAuth, _layout.CodexHome);
+        if (updated is null) return null;
+        _fileSystem.WriteAllBytesAtomic(Path.Combine(backup, "sidebar.dpapi"), _secretProtector.Protect(original));
+        _fileSystem.WriteAllBytesAtomic(SidebarPath, updated);
+        return original;
     }
 
     private void EnsureBaseRuntimeDirectories()

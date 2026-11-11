@@ -7,22 +7,22 @@
 
 [Русский](docs/ru/README.md) | **English** | [中文](docs/zh/README.md)
 
-Codex Account Switcher is an open-source Windows desktop app for safely switching between multiple OpenAI Codex accounts, viewing 5-hour and weekly usage limits, and controlling Codex from an optional Telegram bot. It keeps one shared Codex Home for chats, projects, MCP servers, plugins, skills, and settings while changing only the active sign-in.
+Codex Account Switcher is an open-source Windows desktop app for safely switching between multiple OpenAI Codex accounts, viewing 5-hour and weekly usage limits, and controlling Codex from an optional Telegram bot. It keeps one shared Codex Home for chats, projects, MCP servers, plugins, skills, and settings and carries the local sidebar layout when switching saved sign-ins.
 
 ![Codex Account Switcher 2.0 settings screen](docs/images/codex-account-switcher-v2-settings.png)
 
-## Download v2.0.0
+## Download v2.1.0
 
 Download assets from [GitHub Releases](https://github.com/korsun009/codex-account-switcher/releases/latest) and verify them with `SHA256SUMS.txt`.
 
 | Windows | Recommended auto-update installer | Architecture installer | MSI | Portable |
 | --- | --- | --- | --- | --- |
-| 10/11 x64 | `Codex-Account-Switcher-2.0.0-Setup.exe` | `Codex-Account-Switcher-2.0.0-x64-Setup.exe` | `Codex-Account-Switcher-2.0.0-x64-Setup.msi` | `Codex-Account-Switcher-2.0.0-x64-Portable.zip` |
-| 10/11 x86 | `Codex-Account-Switcher-2.0.0-Setup.exe` | `Codex-Account-Switcher-2.0.0-ia32-Setup.exe` | `Codex-Account-Switcher-2.0.0-ia32-Setup.msi` | `Codex-Account-Switcher-2.0.0-ia32-Portable.zip` |
+| 10/11 x64 | `Codex-Account-Switcher-2.1.0-Setup.exe` | `Codex-Account-Switcher-2.1.0-x64-Setup.exe` | `Codex-Account-Switcher-2.1.0-x64-Setup.msi` | `Codex-Account-Switcher-2.1.0-x64-Portable.zip` |
+| 10/11 x86 | `Codex-Account-Switcher-2.1.0-Setup.exe` | `Codex-Account-Switcher-2.1.0-ia32-Setup.exe` | `Codex-Account-Switcher-2.1.0-ia32-Setup.msi` | `Codex-Account-Switcher-2.1.0-ia32-Portable.zip` |
 
 `ia32` is the Electron name for 32-bit x86 Windows. The self-contained builds do not require a separate .NET installation. macOS, Linux, Windows 8, and Windows 8.1 are not supported.
 
-> **Unsigned release:** v2.0.0 does not yet have an Authenticode Code Signing certificate. Windows may show an unknown-publisher or SmartScreen warning. SHA-256 checksums prove download integrity but do not replace a trusted publisher signature. This limitation is stated in the release notes and will be removed only after a trusted certificate is configured.
+> **Unsigned release:** v2.1.0 does not yet have an Authenticode Code Signing certificate. Windows may show an unknown-publisher or SmartScreen warning. SHA-256 checksums prove download integrity but do not replace a trusted publisher signature. This limitation is stated in the release notes and will be removed only after a trusted certificate is configured.
 
 ## Features
 
@@ -49,7 +49,7 @@ The NSIS installer is recommended because the in-app updater downloads that form
 
 ## Security Model
 
-- Only the live `auth.json` is switched. Shared Codex data is not copied per account.
+- Switching a saved profile also merges local projects, chat assignments, pins and sections into its Codex sidebar. Codex keeps its shared chat database and files in place. Cloud-backed projects, cloud chats and drafts stay with their account.
 - Saved profile credentials and credential backups are encrypted as `auth.dpapi` with Windows DPAPI `CurrentUser`.
 - A legacy plaintext profile is migrated only after encrypted write, decrypt, validation, and byte comparison succeed; the legacy file is then deleted.
 - DPAPI files are bound to the Windows user profile. Do not sync or copy them to another PC as a credential-transfer mechanism. Profile names may appear on another synchronized PC, but encrypted sign-ins are not portable.
@@ -90,4 +90,4 @@ pwsh -File .\scripts\build-release.ps1
 
 The production build rejects unsigned executables by default. `-AllowUnsigned` is reserved for explicit local candidates and does not make them signed.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), [v2.0.0 release notes](docs/RELEASE_NOTES_2.0.0.md), and the [MIT license](LICENSE).
+See [CONTRIBUTING.md](CONTRIBUTING.md), [v2.1.0 release notes](docs/RELEASE_NOTES_2.1.0.md), and the [MIT license](LICENSE).

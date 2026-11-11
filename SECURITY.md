@@ -13,7 +13,7 @@ Never commit or upload:
 
 ## Scope
 
-The app is intentionally conservative. It switches only the Codex sign-in file `auth.json`; shared chats, projects, MCP, plugins, skills, and tools are not copied or separated.
+The app switches the saved Codex sign-in and carries local project and chat sidebar metadata between the selected profiles. A layout change creates a CurrentUser DPAPI backup (`sidebar.dpapi`) beside the credential backup. Shared SQLite databases and chat files stay in place. Cloud project references, cloud chats, permissions and drafts stay scoped to their account.
 
 ## Reporting issues
 

@@ -1,6 +1,6 @@
 {
   "name": "codex-account-switcher-desktop",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Secure Windows account switcher for Codex",
   "main": "out/main/index.js",
   "author": "Codex Account Switcher contributors",
