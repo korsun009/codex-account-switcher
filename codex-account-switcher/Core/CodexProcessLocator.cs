@@ -33,7 +33,8 @@ public static class CodexProcessLocator
         IReadOnlyCollection<ProcessInventoryEntry> processes)
     {
         var storeProcessIds = processes
-            .Where(process => IsStoreCodexExecutablePath(process.ExecutablePath))
+            .Where(process => IsStoreCodexExecutablePath(process.ExecutablePath)
+                && !string.Equals(Path.GetFileName(process.ExecutablePath), "node.exe", StringComparison.OrdinalIgnoreCase))
             .Select(process => process.ProcessId)
             .ToHashSet();
 

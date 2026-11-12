@@ -182,7 +182,8 @@ public sealed class AccountSwitcherService
                 }
             }
 
-            return new SwitchResult(false, previousProfile, $"Переключение отменено, предыдущий вход восстановлен: {ex.Message}", backupDirectory);
+            var status = stopped ? "предыдущий вход восстановлен" : "активный вход не менялся";
+            return new SwitchResult(false, previousProfile, $"Переключение отменено, {status}: {ex.Message}", backupDirectory);
         }
     }
 

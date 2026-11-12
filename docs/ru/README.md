@@ -4,18 +4,18 @@
 
 Codex Account Switcher — открытая Windows-программа для безопасного переключения нескольких аккаунтов OpenAI Codex, просмотра пятичасовых и недельных лимитов и удалённого управления через Telegram. При переключении профиля сохраняются локальные проекты, привязки чатов и разделы боковой панели.
 
-## Скачать 2.1.0
+## Скачать 2.1.1
 
 Файлы находятся в [GitHub Releases](https://github.com/korsun009/codex-account-switcher/releases/latest). Проверяйте их по `SHA256SUMS.txt`.
 
 | Windows | Установщик с автообновлением | Установщик архитектуры | MSI | Portable |
 | --- | --- | --- | --- | --- |
-| 10/11 x64 | `Codex-Account-Switcher-2.1.0-Setup.exe` | `Codex-Account-Switcher-2.1.0-x64-Setup.exe` | `Codex-Account-Switcher-2.1.0-x64-Setup.msi` | `Codex-Account-Switcher-2.1.0-x64-Portable.zip` |
-| 10/11 x86 | `Codex-Account-Switcher-2.1.0-Setup.exe` | `Codex-Account-Switcher-2.1.0-ia32-Setup.exe` | `Codex-Account-Switcher-2.1.0-ia32-Setup.msi` | `Codex-Account-Switcher-2.1.0-ia32-Portable.zip` |
+| 10/11 x64 | `Codex-Account-Switcher-2.1.1-Setup.exe` | `Codex-Account-Switcher-2.1.1-x64-Setup.exe` | `Codex-Account-Switcher-2.1.1-x64-Setup.msi` | `Codex-Account-Switcher-2.1.1-x64-Portable.zip` |
+| 10/11 x86 | `Codex-Account-Switcher-2.1.1-Setup.exe` | `Codex-Account-Switcher-2.1.1-ia32-Setup.exe` | `Codex-Account-Switcher-2.1.1-ia32-Setup.msi` | `Codex-Account-Switcher-2.1.1-ia32-Portable.zip` |
 
 `ia32` означает 32-битную x86-сборку. .NET отдельно устанавливать не нужно. macOS, Linux, Windows 8 и 8.1 не поддерживаются.
 
-> Версия 2.1.0 пока не подписана Authenticode-сертификатом. Windows может показать «Неизвестный издатель» или SmartScreen. Контрольные суммы проверяют целостность файла, но не заменяют подпись доверенного издателя.
+> Версия 2.1.1 пока не подписана Authenticode-сертификатом. Windows может показать «Неизвестный издатель» или SmartScreen. Контрольные суммы проверяют целостность файла, но не заменяют подпись доверенного издателя.
 
 ## Возможности
 
@@ -67,4 +67,4 @@ Pop-Location
 pwsh -File .\scripts\build-release.ps1
 ```
 
-См. [изменения 2.1.0](../RELEASE_NOTES_2.1.0.md), [участие в разработке](../../CONTRIBUTING.md) и [модель безопасности](../../SECURITY.md).
+См. [изменения 2.1.1](../RELEASE_NOTES_2.1.1.md), [участие в разработке](../../CONTRIBUTING.md) и [модель безопасности](../../SECURITY.md).

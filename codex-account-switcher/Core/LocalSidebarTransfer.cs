@@ -40,11 +40,13 @@ internal static class LocalSidebarTransfer
 
     public static byte[]? Prepare(byte[] original, byte[]? previousAuth, byte[] targetAuth, string home)
     {
-        if (JsonNode.Parse(original) is not JsonObject state ||
-            state[Renderer] is not JsonObject renderer || renderer["inactive"] is not JsonObject inactive) return null;
+        if (JsonNode.Parse(original) is not JsonObject state) return null;
         var from = ReadIdentity(previousAuth);
         var to = ReadIdentity(targetAuth);
         if (to is null) return null;
+        if (Text(state["electron-renderer-content-owner"]) is { } contentOwner)
+            return PrepareOwnerAtoms(state, contentOwner, from, to, home);
+        if (state[Renderer] is not JsonObject renderer || renderer["inactive"] is not JsonObject inactive) return null;
         var currentOwner = Text(renderer["owner"]);
         var active = currentOwner == to.Owner;
         var existing = active ? new JsonObject { ["globals"] = SnapshotGlobals(state), ["atoms"] = state[Atoms]?.DeepClone() } : inactive[to.Owner] as JsonObject;
@@ -81,6 +83,56 @@ internal static class LocalSidebarTransfer
         "pinned-project-ids", "thread-project-assignments", "thread-project-membership-host-ids",
         "sidebar-project-thread-orders", "app-server-project-id-by-legacy-project-id-by-host",
         "app-server-projects-migration-by-host", "projectless-thread-ids"];
+
+    // Recent desktops keep the project registry shared and store the actual
+    // sidebar for each owner in a separate atom dictionary, including the active one.
+    private static byte[]? PrepareOwnerAtoms(JsonObject state, string owner, Identity? from, Identity to, string home)
+    {
+        const string prefix = "electron-owner-atoms:";
+        var key = prefix + to.Owner;
+        var original = state[key]?.AsObject();
+        var target = original?.DeepClone().AsObject() ?? new JsonObject();
+        var catalog = LocalProjectCatalog.Read(home);
+        var projects = new HashSet<string>(StringComparer.Ordinal);
+        if (catalog is not null) projects.UnionWith(Map(catalog.Globals, "local-projects").Select(x => x.Key));
+        foreach (var (id, value) in Map(state, "local-projects"))
+        {
+            if (IsLocalProject(id, value)) projects.Add(id);
+            else projects.Remove(id);
+        }
+        bool Local(string item) => item.StartsWith("codex:thread:local:", StringComparison.Ordinal) ||
+            (item.StartsWith("codex:project:", StringComparison.Ordinal) && projects.Contains(item["codex:project:".Length..]));
+
+        foreach (var (sourceKey, value) in state.OrderByDescending(pair => pair.Key == prefix + owner))
+        {
+            if (sourceKey == key || !sourceKey.StartsWith(prefix, StringComparison.Ordinal) || value is not JsonObject source) continue;
+            bool outgoing = from?.Owner == owner && sourceKey == prefix + owner;
+            var account = outgoing ? from!.Account : ResolveSectionAccount(source, sourceKey[prefix.Length..]);
+            if (account is not null && Map(source, Sections)[account] is JsonObject sectionState)
+            {
+                var existingSections = Map(Map(target, Sections), to.Account)["sections"] as JsonArray;
+                var placed = existingSections?.OfType<JsonObject>().SelectMany(s => Strings(s["itemKeys"])).ToHashSet()
+                    ?? new HashSet<string>();
+                bool Accept(string item) => Local(item) && (outgoing || !placed.Contains(item));
+                if ((sectionState["sections"] as JsonArray)?.OfType<JsonObject>().Any(s => Strings(s["itemKeys"]).Any(Accept)) == true)
+                    MergeSections(sectionState, target, to.Account, Accept, _ => false, !outgoing);
+            }
+            foreach (var field in new[] { "unified-sidebar-pinned-order-v1", "unified-sidebar-project-order-v1" })
+                MergeOrder(source, target, field, Local, append: !outgoing);
+            if (outgoing || target["flat-project-sidebar-preferences-v1"] is null)
+                CopyMap(source, target, "flat-project-sidebar-preferences-v1",
+                    k => k is "mode" or "projectSortMode" or "chatSortMode" or "pinnedSortMode" or "initialized");
+        }
+        if (target.Count == 0 || JsonNode.DeepEquals(original, target)) return null;
+        state[key] = target;
+        return JsonSerializer.SerializeToUtf8Bytes(state);
+    }
+
+    private static bool IsLocalProject(string id, JsonNode? node) =>
+        node is JsonObject project && Text(project["id"]) == id && !id.StartsWith("g-p-", StringComparison.Ordinal) &&
+        project["chatGptBacking"] is null && project["chatGptBackingCreation"] is null && project["retiredChatGptBacking"] is null &&
+        project["rootPaths"] is JsonArray && project["connectionId"] is null && project["remoteConnectionId"] is null &&
+        Text(project["hostId"]) is null or "local";
 
     private static JsonObject SnapshotGlobals(JsonObject state)
     {
@@ -120,11 +172,7 @@ internal static class LocalSidebarTransfer
         foreach (var (id, node) in Map(state, "local-projects"))
         {
             if (missingOnly && catalog is not null && Text(donorIds[id]) is { } serverId && !catalog.ServerIds.Contains(serverId)) continue;
-            if (node is not JsonObject project || Text(project["id"]) != id ||
-                id.StartsWith("g-p-", StringComparison.Ordinal) || project["chatGptBacking"] is not null ||
-                project["chatGptBackingCreation"] is not null || project["retiredChatGptBacking"] is not null ||
-                project["rootPaths"] is not JsonArray || project["connectionId"] is not null ||
-                project["remoteConnectionId"] is not null || Text(project["hostId"]) is not (null or "local")) continue;
+            if (node is not JsonObject project || !IsLocalProject(id, project)) continue;
             eligible.Add(id);
             if (missingOnly && Map(globals, "local-projects").ContainsKey(id)) continue;
             projects.Add(id);

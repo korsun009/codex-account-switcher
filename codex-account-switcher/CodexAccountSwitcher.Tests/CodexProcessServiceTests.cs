@@ -81,7 +81,7 @@ public sealed class CodexProcessServiceTests
         Assert.DoesNotContain(controller.Operations, operation => operation.Contains(":200", StringComparison.Ordinal));
         Assert.DoesNotContain(controller.Operations, operation => operation.Contains(":300", StringComparison.Ordinal));
         Assert.DoesNotContain(controller.Operations, operation => operation.Contains(":301", StringComparison.Ordinal));
-        Assert.Equal([200, 201, 300, 301], inventory.Capture().Select(process => process.ProcessId));
+        Assert.Equal([200, 201, 300, 301, 302], inventory.Capture().Select(process => process.ProcessId));
     }
 
     private static IReadOnlyList<ProcessInventoryEntry> CurrentTopology()
@@ -95,8 +95,22 @@ public sealed class CodexProcessServiceTests
             Process(200, 20, "ChatGPT", @"C:\Program Files\WindowsApps\OpenAI.ChatGPT-Desktop_1.0.0.0_x64__2p2nqsd0c76g0\app\ChatGPT.exe"),
             Process(201, 200, "ChatGPT", @"C:\Program Files\WindowsApps\OpenAI.ChatGPT-Desktop_1.0.0.0_x64__2p2nqsd0c76g0\app\ChatGPT.exe"),
             Process(300, 30, "codex", @"C:\Tools\codex.exe"),
-            Process(301, 31, "codex", @"C:\Users\test\.vscode\extensions\openai.chatgpt-1.2.3\bin\windows-x86_64\codex.exe")
+            Process(301, 31, "codex", @"C:\Users\test\.vscode\extensions\openai.chatgpt-1.2.3\bin\windows-x86_64\codex.exe"),
+            Process(302, 32, "node", Path.Combine(StoreRoot, "resources", "cua_node", "bin", "node.exe"))
         ];
+    }
+
+    [Fact]
+    public async Task StopCompletesWhenStoreHelperSurvivesBesideMainTree()
+    {
+        var helper = Process(104, 999, "codex", Path.Combine(StoreRoot, "resources", "codex.exe"));
+        var inventory = new MutableProcessInventory(CurrentTopology().Append(helper));
+        var controller = new RecordingProcessController(inventory);
+        var service = new WindowsCodexProcessService(inventory, controller, new RecordingCodexAppLauncher(),
+            TimeSpan.Zero, TimeSpan.FromMilliseconds(5));
+        await service.StopCodexAsync(TimeSpan.FromSeconds(1), default);
+        Assert.Contains("kill:104", controller.Operations);
+        Assert.Contains(inventory.Capture(), p => p.ProcessId == 302);
     }
 
     private static ProcessInventoryEntry Process(int processId, int parentProcessId, string name, string path)

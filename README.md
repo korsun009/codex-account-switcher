@@ -11,18 +11,18 @@ Codex Account Switcher is an open-source Windows desktop app for safely switchin
 
 ![Codex Account Switcher 2.0 settings screen](docs/images/codex-account-switcher-v2-settings.png)
 
-## Download v2.1.0
+## Download v2.1.1
 
 Download assets from [GitHub Releases](https://github.com/korsun009/codex-account-switcher/releases/latest) and verify them with `SHA256SUMS.txt`.
 
 | Windows | Recommended auto-update installer | Architecture installer | MSI | Portable |
 | --- | --- | --- | --- | --- |
-| 10/11 x64 | `Codex-Account-Switcher-2.1.0-Setup.exe` | `Codex-Account-Switcher-2.1.0-x64-Setup.exe` | `Codex-Account-Switcher-2.1.0-x64-Setup.msi` | `Codex-Account-Switcher-2.1.0-x64-Portable.zip` |
-| 10/11 x86 | `Codex-Account-Switcher-2.1.0-Setup.exe` | `Codex-Account-Switcher-2.1.0-ia32-Setup.exe` | `Codex-Account-Switcher-2.1.0-ia32-Setup.msi` | `Codex-Account-Switcher-2.1.0-ia32-Portable.zip` |
+| 10/11 x64 | `Codex-Account-Switcher-2.1.1-Setup.exe` | `Codex-Account-Switcher-2.1.1-x64-Setup.exe` | `Codex-Account-Switcher-2.1.1-x64-Setup.msi` | `Codex-Account-Switcher-2.1.1-x64-Portable.zip` |
+| 10/11 x86 | `Codex-Account-Switcher-2.1.1-Setup.exe` | `Codex-Account-Switcher-2.1.1-ia32-Setup.exe` | `Codex-Account-Switcher-2.1.1-ia32-Setup.msi` | `Codex-Account-Switcher-2.1.1-ia32-Portable.zip` |
 
 `ia32` is the Electron name for 32-bit x86 Windows. The self-contained builds do not require a separate .NET installation. macOS, Linux, Windows 8, and Windows 8.1 are not supported.
 
-> **Unsigned release:** v2.1.0 does not yet have an Authenticode Code Signing certificate. Windows may show an unknown-publisher or SmartScreen warning. SHA-256 checksums prove download integrity but do not replace a trusted publisher signature. This limitation is stated in the release notes and will be removed only after a trusted certificate is configured.
+> **Unsigned release:** v2.1.1 does not yet have an Authenticode Code Signing certificate. Windows may show an unknown-publisher or SmartScreen warning. SHA-256 checksums prove download integrity but do not replace a trusted publisher signature. This limitation is stated in the release notes and will be removed only after a trusted certificate is configured.
 
 ## Features
 
@@ -90,4 +90,4 @@ pwsh -File .\scripts\build-release.ps1
 
 The production build rejects unsigned executables by default. `-AllowUnsigned` is reserved for explicit local candidates and does not make them signed.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), [v2.1.0 release notes](docs/RELEASE_NOTES_2.1.0.md), and the [MIT license](LICENSE).
+See [CONTRIBUTING.md](CONTRIBUTING.md), [v2.1.1 release notes](docs/RELEASE_NOTES_2.1.1.md), and the [MIT license](LICENSE).

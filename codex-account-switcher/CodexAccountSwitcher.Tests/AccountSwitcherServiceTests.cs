@@ -497,6 +497,36 @@ public sealed class AccountSwitcherServiceTests : IDisposable
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OwnerScopedSectionsRecoverMissingLocalItems(bool reconnect)
+    {
+        AddProfiles("a", "b");
+        var payload = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("""{"https://api.openai.com/auth":{"chatgpt_user_id":"fixture"}}""")).TrimEnd('=');
+        string Auth(string id) => JsonSerializer.Serialize(new { tokens = new { account_id = id, id_token = $"h.{payload}.x" } });
+        static string Owner(string id) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            JsonSerializer.SerializeToUtf8Bytes(new[] { "fixture", id }))).ToLowerInvariant();
+        File.WriteAllText(_layout.AuthJsonPath, Auth(reconnect ? "b" : "a"));
+        File.WriteAllText(_layout.ProfileAuthPath("b"), Auth("b"));
+        var path = Path.Combine(_root, ".codex-global-state.json");
+        var fixture = """
+            {"electron-renderer-content-owner":"ACTIVE","local-projects":{"p":{"id":"p","rootPaths":["X:/p"]}},
+             "electron-owner-atoms:A":{"draft":"private","sidebar-custom-sections-v3":{"a":{"sections":[{"id":"one","hostSectionIds":{"local":"s"},"name":"Work","itemKeys":["codex:project:p","codex:thread:local:t","chatgpt:project:cloud"]}]}}},
+             "electron-owner-atoms:B":{"draft":"keep","sidebar-custom-sections-v3":{"b":{"sections":[{"id":"two","hostSectionIds":{"local":"s"},"name":"Work","itemKeys":["chatgpt:project:mine"]}]}}}}
+            """.Replace("ACTIVE",Owner(reconnect ? "b" : "a")).Replace("atoms:A","atoms:"+Owner("a")).Replace("atoms:B","atoms:"+Owner("b"));
+        File.WriteAllText(path, fixture);
+        var result = await _service.SwitchToAsync("b", default);
+        Assert.True(result.Success);
+        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        var dest = doc.RootElement.GetProperty("electron-owner-atoms:"+Owner("b"));
+        var sections = dest.GetProperty("sidebar-custom-sections-v3").GetProperty("b").GetProperty("sections");
+        Assert.Equal(1, sections.GetArrayLength());
+        Assert.Equal("two", sections[0].GetProperty("id").GetString());
+        Assert.Equal(new[] {"codex:project:p","codex:thread:local:t","chatgpt:project:mine"}, sections[0].GetProperty("itemKeys").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal("keep", dest.GetProperty("draft").GetString());
+    }
+
     [Fact]
     public async Task EverySwitchFindsProjectsCreatedAfterThePreviousScanOnTheFirstTry()
     {

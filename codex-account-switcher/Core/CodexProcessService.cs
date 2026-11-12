@@ -62,31 +62,29 @@ public sealed class WindowsCodexProcessService : ICodexProcessService
             await Task.Delay(_gracefulCloseDelay, cancellationToken);
         }
 
-        var afterClose = _inventory.Capture();
-        var remainingRoots = CodexProcessLocator.FindStoreCodexRoots(afterClose);
-        if (remainingRoots.Count == 0 && CodexProcessLocator.FindStoreCodexProcesses(afterClose).Count > 0)
-        {
-            remainingRoots = CodexProcessLocator.FindTopLevelStoreCodexProcesses(afterClose);
-        }
-
-        foreach (var root in remainingRoots)
-        {
-            try
-            {
-                _controller.KillProcessTree(root);
-            }
-            catch
-            {
-                // The bounded verification loop below decides whether shutdown succeeded.
-            }
-        }
-
+        var attempted = new HashSet<int>();
         while (DateTimeOffset.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (CodexProcessLocator.FindStoreCodexProcesses(_inventory.Capture()).Count == 0)
+            var roots = CodexProcessLocator.FindTopLevelStoreCodexProcesses(_inventory.Capture());
+            if (roots.Count == 0) return;
+            foreach (var root in roots)
             {
-                return;
+                if (!attempted.Add(root.ProcessId)) continue;
+                try
+                {
+                    _controller.KillProcessTree(root);
+                }
+                catch (System.ComponentModel.Win32Exception)
+                {
+                    // A racing exit or transient permission error is checked on the next snapshot.
+                    attempted.Remove(root.ProcessId);
+                }
+                catch (InvalidOperationException)
+                {
+                    // The process may have exited between the inventory and termination.
+                    attempted.Remove(root.ProcessId);
+                }
             }
 
             if (_pollDelay > TimeSpan.Zero)
