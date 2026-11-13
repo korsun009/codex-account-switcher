@@ -4,18 +4,18 @@
 
 Codex Account Switcher is an open-source Windows app for switching multiple OpenAI Codex accounts, viewing 5-hour and weekly limits, and optionally controlling Codex through Telegram. Saved profiles share the local project and chat sidebar on this computer.
 
-## Download 2.1.1
+## Download 2.2.0
 
 Get the release from [GitHub Releases](https://github.com/korsun009/codex-account-switcher/releases/latest) and verify `SHA256SUMS.txt`.
 
 | Windows | Auto-update installer | Architecture installer | MSI | Portable |
 | --- | --- | --- | --- | --- |
-| 10/11 x64 | `Codex-Account-Switcher-2.1.1-Setup.exe` | `Codex-Account-Switcher-2.1.1-x64-Setup.exe` | `Codex-Account-Switcher-2.1.1-x64-Setup.msi` | `Codex-Account-Switcher-2.1.1-x64-Portable.zip` |
-| 10/11 x86 | `Codex-Account-Switcher-2.1.1-Setup.exe` | `Codex-Account-Switcher-2.1.1-ia32-Setup.exe` | `Codex-Account-Switcher-2.1.1-ia32-Setup.msi` | `Codex-Account-Switcher-2.1.1-ia32-Portable.zip` |
+| 10/11 x64 | `Codex-Account-Switcher-2.2.0-Setup.exe` | `Codex-Account-Switcher-2.2.0-x64-Setup.exe` | `Codex-Account-Switcher-2.2.0-x64-Setup.msi` | `Codex-Account-Switcher-2.2.0-x64-Portable.zip` |
+| 10/11 x86 | `Codex-Account-Switcher-2.2.0-Setup.exe` | `Codex-Account-Switcher-2.2.0-ia32-Setup.exe` | `Codex-Account-Switcher-2.2.0-ia32-Setup.msi` | `Codex-Account-Switcher-2.2.0-ia32-Portable.zip` |
 
 `ia32` means 32-bit x86 Windows. Builds are self-contained. macOS, Linux, Windows 8, and Windows 8.1 are unsupported.
 
-> v2.1.1 is not Authenticode signed. Windows can show an unknown-publisher or SmartScreen warning. Checksums verify integrity but do not replace a trusted publisher signature.
+> v2.2.0 is not Authenticode signed. Windows can show an unknown-publisher or SmartScreen warning. Checksums verify integrity but do not replace a trusted publisher signature.
 
 ## Highlights
 
@@ -45,4 +45,4 @@ See the [GUI and Telegram setup guide](../TELEGRAM_GUI_SETUP.md), [Remote API](.
 
 Community translations are welcome through a fork and pull request. Edit [`desktop/src/renderer/src/locales/translations.json`](../../desktop/src/renderer/src/locales/translations.json), preserve the key tree and `{{placeholders}}`, validate, and open a PR. See [TRANSLATIONS.md](../TRANSLATIONS.md).
 
-Build and contribution details are in the [main README](../../README.md), [CONTRIBUTING.md](../../CONTRIBUTING.md), and [v2.1.1 release notes](../RELEASE_NOTES_2.1.1.md).
+Build and contribution details are in the [main README](../../README.md), [CONTRIBUTING.md](../../CONTRIBUTING.md), and [v2.2.0 release notes](../RELEASE_NOTES_2.2.0.md).
