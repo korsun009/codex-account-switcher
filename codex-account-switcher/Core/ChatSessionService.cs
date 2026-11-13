@@ -127,7 +127,7 @@ public sealed class ChatSessionService : IChatSessionService
                 var detail = await WaitForThread(chat.Id, cancellationToken);
                 var turn = detail["turns"]?.AsArray().FirstOrDefault();
                 var status = Text(detail["thread"]?["status"]?["type"]);
-                if (status == "active" || Flags(detail).Length != 0 || Text(turn?["id"]) != chat.TurnId ||
+                if (status is not ("idle" or "notLoaded") || Flags(detail).Length != 0 || Text(turn?["id"]) != chat.TurnId ||
                     Text(turn?["status"]) is not ("interrupted" or "inProgress"))
                 {
                     current.Chats[index] = chat with { Continuation = "skipped" };

@@ -66,6 +66,8 @@ public sealed class ChatSessionServiceTests
     [InlineData("completed", "old", "idle", false)]
     [InlineData("interrupted", "new", "idle", false)]
     [InlineData("inProgress", "old", "active", false)]
+    [InlineData("interrupted", "old", "unknown", false)]
+    [InlineData("interrupted", "old", "", false)]
     public async Task ContinueChecksLastTurnAndNeverSendsTwice(string turnStatus, string turnId, string status, bool expected)
     {
         var root = Path.Combine(Path.GetTempPath(), "codex-switcher-resume-tests", Guid.NewGuid().ToString("N"));

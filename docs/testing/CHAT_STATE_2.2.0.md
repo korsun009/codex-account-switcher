@@ -6,7 +6,7 @@
 2. While desktop is running, read local Codex chat history through the desktop App Tools pipe. Page through all history and inspect the last turn with up to six concurrent read-only calls. Preserve unloaded failures too. Snapshot must complete within 90 seconds; a partial snapshot is not committed.
 3. Store the snapshot in `_account_profiles/chat-session.dpapi` using current-user Windows DPAPI and atomic replacement. It contains local titles, state, last turn IDs, error text, and continuation outcomes; never auth tokens.
 4. Close Codex using existing shutdown logic, back up auth and global state, transfer local sidebar and read markers, replace only authorized account credentials, launch Codex.
-5. If enabled, re-read each previously active chat. Send only when the last turn ID matches and its state is interrupted/inProgress, with no active execution or waiting flags. The entire continuation phase has a 60-second deadline. Read calls can retry desktop startup; sends never retry.
+5. If enabled, re-read each previously active chat. Send only when the last turn ID matches and its state is interrupted/inProgress, with a known idle/notLoaded status and no waiting flags. Unknown or absent statuses fail closed. The entire continuation phase has a 60-second deadline. Read calls can retry desktop startup; sends never retry.
 6. Commit `attempted` before dispatch and `sent` after acknowledgment. A lost response becomes `uncertain`. Reload the same operation journal to prevent repeat dispatch after process restart. This guarantees at most one dispatch per operation, not remote exactly-once execution.
 
 ## Compatibility boundaries
