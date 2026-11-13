@@ -253,3 +253,14 @@ select:focus { border-color: #789173; box-shadow: 0 0 0 2px var(--focus-shadow);
 :root[data-theme="light"] select,
 :root[data-theme="light"] .connection-form input { border-color: #cbd2cb; color: #172019; background: #ffffff; }
 :root[data-theme="light"] .sidebar__status { border-color: #d4dbd4; }
+
+.settings-list input.chat-resume-toggle { appearance: none; width: 40px; height: 24px; border-radius: 14px; background: var(--text-muted, #777); border: 2px solid transparent; position: relative; cursor: pointer; flex-shrink: 0; }
+.settings-list input.chat-resume-toggle::after { content: ''; display: block; width: 16px; height: 16px; margin: 2px; background: white; border-radius: 50%; transition: transform 120ms; }
+.settings-list input.chat-resume-toggle:checked { background: var(--accent, #7f9c76); }
+.settings-list input.chat-resume-toggle:checked::after { transform: translateX(16px); }
+.settings-list input.chat-resume-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.settings-list input.chat-resume-toggle:disabled { opacity: .5; cursor: wait; }
+.chat-error-detail { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; font-size: 12px; }
+
+.chat-state-row { grid-template-columns: minmax(0, 1fr); }
+.chat-state-row > div { min-width: 0; overflow-wrap: anywhere; }

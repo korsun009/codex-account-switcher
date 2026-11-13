@@ -23,6 +23,50 @@ public sealed class AccountSwitcherServiceTests : IDisposable
         _service = new AccountSwitcherService(_layout, _fileSystem, _processService);
     }
 
+    [Theory]
+    [InlineData(false, false, false, false, true)]
+    [InlineData(true, false, false, false, true)]
+    [InlineData(true, true, false, false, true)]
+    [InlineData(true, true, true, false, false)]
+    [InlineData(true, true, false, true, true)]
+    [InlineData(false, true, true, false, true)]
+    public async Task ContinuationIsOptInAndFailuresRespectSwitchCommit(bool enabled, bool running,
+        bool failCapture, bool failContinue, bool success)
+    {
+        AddProfiles("target");
+        File.WriteAllText(_layout.ProfileAuthPath("target"), "{\"token\":\"target-secret\"}");
+        _processService.Running = running;
+        var sessions = new FakeSessions(_processService, failCapture, failContinue);
+        var service = new AccountSwitcherService(_layout, _fileSystem, _processService,
+            chatSessions: sessions, continueChats: () => enabled);
+        var result = await service.SwitchToAsync("target", default);
+        Assert.Equal(success, result.Success);
+        Assert.Equal(running, sessions.Captured);
+        Assert.Equal(enabled && running && !failCapture, sessions.Continued);
+        Assert.Equal(success, _processService.StopCalled);
+        Assert.Equal(success ? "{\"token\":\"target-secret\"}" : "{\"token\":\"live-secret\"}", File.ReadAllText(_layout.AuthJsonPath));
+    }
+
+    private sealed class FakeSessions(FakeProcessService processes, bool failCapture, bool failContinue) : IChatSessionService
+    {
+        public bool Captured { get; private set; }
+        public bool Continued { get; private set; }
+        public Task<ChatSessionSnapshot> CaptureAsync(CancellationToken cancellationToken)
+        {
+            Assert.False(processes.StopCalled);
+            Captured = true;
+            if (failCapture) throw new IOException("capture fixture");
+            return Task.FromResult(new ChatSessionSnapshot("operation", DateTimeOffset.UtcNow, []));
+        }
+        public Task<string> ContinueAsync(ChatSessionSnapshot snapshot, CancellationToken cancellationToken)
+        {
+            Assert.True(processes.LaunchCalled);
+            Continued = true;
+            if (failContinue) throw new IOException("continue fixture");
+            return Task.FromResult("continued");
+        }
+    }
+
     [Fact]
     public void EnsurePathInsideRejectsOutsidePaths()
     {
@@ -527,6 +571,35 @@ public sealed class AccountSwitcherServiceTests : IDisposable
         Assert.Equal("keep", dest.GetProperty("draft").GetString());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SwitchingTransfersUnreadStateAndReadClears(bool emptySource)
+    {
+        AddProfiles("a", "b");
+        var payload = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("""{"https://api.openai.com/auth":{"chatgpt_user_id":"fixture"}}""")).TrimEnd('=');
+        string Auth(string id) => JsonSerializer.Serialize(new { tokens = new { account_id = id, id_token = $"h.{payload}.x" } });
+        static string Identity(string id) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            JsonSerializer.SerializeToUtf8Bytes(new[] { "chatgpt", id, "fixture" }))).ToLowerInvariant();
+        File.WriteAllText(_layout.AuthJsonPath, Auth("a"));
+        File.WriteAllText(_layout.ProfileAuthPath("b"), Auth("b"));
+        var ids = emptySource ? Array.Empty<string>() : new[] { "unread-chat" };
+        var state = new { version = 1, unreadByIdentity = new Dictionary<string, object>
+        {
+            [Identity("a")] = new Dictionary<string, string[]> { ["local:home"] = ids, ["remote:server"] = ["remote-a"] },
+            [Identity("b")] = new Dictionary<string, string[]> { ["local:home"] = ["already-read"], ["remote:server"] = ["remote-b"] }
+        }};
+        var path = Path.Combine(_root, ".codex-global-state.json");
+        File.WriteAllText(path, JsonSerializer.Serialize(new Dictionary<string, object> { ["electron-thread-read-state-v1"] = state }));
+        var result = await _service.SwitchToAsync("b", default);
+        Assert.True(result.Success);
+        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        var target = document.RootElement.GetProperty("electron-thread-read-state-v1").GetProperty("unreadByIdentity").GetProperty(Identity("b"));
+        Assert.Equal(ids, target.GetProperty("local:home").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal("remote-b", target.GetProperty("remote:server")[0].GetString());
+        Assert.True(File.Exists(Path.Combine(result.BackupDirectory!, "sidebar.dpapi")));
+    }
+
     [Fact]
     public async Task EverySwitchFindsProjectsCreatedAfterThePreviousScanOnTheFirstTry()
     {
@@ -595,7 +668,8 @@ public sealed class AccountSwitcherServiceTests : IDisposable
         public bool LaunchCalled { get; private set; }
         public bool ThrowOnLaunch { get; set; }
 
-        public IReadOnlyList<CodexProcessInfo> FindRunningCodexProcesses() => [];
+        public bool Running { get; set; }
+        public IReadOnlyList<CodexProcessInfo> FindRunningCodexProcesses() => Running ? [new("Codex", 1, "fixture")] : [];
 
         public Task StopCodexAsync(TimeSpan timeout, CancellationToken cancellationToken)
         {

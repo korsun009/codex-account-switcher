@@ -14,13 +14,17 @@ public sealed class AccountSwitcherService
     private readonly IProfileStore? _profileStore;
     private readonly ISecretProtector _secretProtector;
     private readonly ProfileCredentialStore _credentialStore;
+    private readonly IChatSessionService? _chatSessions;
+    private readonly Func<bool> _continueChats;
 
     public AccountSwitcherService(
         CodexHomeLayout layout,
         IFileSystem fileSystem,
         ICodexProcessService processService,
         IProfileStore? profileStore = null,
-        ISecretProtector? secretProtector = null)
+        ISecretProtector? secretProtector = null,
+        IChatSessionService? chatSessions = null,
+        Func<bool>? continueChats = null)
     {
         _layout = layout;
         _fileSystem = fileSystem;
@@ -28,6 +32,10 @@ public sealed class AccountSwitcherService
         _profileStore = profileStore;
         _secretProtector = secretProtector ?? new WindowsDpapiSecretProtector();
         _credentialStore = new ProfileCredentialStore(layout, fileSystem, _secretProtector);
+        _chatSessions = chatSessions ?? (processService is WindowsCodexProcessService
+            ? new ChatSessionService(layout, protector: _secretProtector, files: fileSystem) : null);
+        _continueChats = continueChats ?? (() => profileStore is SqliteAppDatabase database &&
+            database.GetSetting("continueActiveChats") == "true");
     }
 
     public static AccountSwitcherService CreateDefault(CodexHomeLayout layout, IProfileStore? profileStore = null)
@@ -141,6 +149,21 @@ public sealed class AccountSwitcherService
         var stopped = false;
         try
         {
+            ChatSessionSnapshot? chatSnapshot = null;
+            var continueChats = _continueChats();
+            var chatNotice = "";
+            if (_chatSessions is not null && _processService.FindRunningCodexProcesses().Count > 0)
+            {
+                using var captureTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                captureTimeout.CancelAfter(TimeSpan.FromSeconds(90));
+                try { chatSnapshot = await _chatSessions.CaptureAsync(captureTimeout.Token); }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    if (continueChats) throw new InvalidOperationException("Не удалось сохранить активные чаты. Переключение остановлено до закрытия Codex.", ex);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    chatNotice = " Снимок состояний чатов недоступен для этой версии Codex.";
+                }
+            }
             await _processService.StopCodexAsync(TimeSpan.FromSeconds(12), cancellationToken);
             stopped = true;
             if (_fileSystem.FileExists(_layout.AuthJsonPath))
@@ -164,7 +187,19 @@ public sealed class AccountSwitcherService
             WriteActiveProfile(profile.Name);
             await _processService.LaunchCodexAsync(cancellationToken);
 
-            return new SwitchResult(true, profile.Name, $"Переключено на «{profile.DisplayName}». Резервная копия: {backupDirectory}", backupDirectory);
+            if (continueChats && chatSnapshot is not null && _chatSessions is not null)
+            {
+                // Authentication is already committed. A continuation failure
+                // must not roll back an account under a newly started task.
+                using var resumeTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                resumeTimeout.CancelAfter(TimeSpan.FromSeconds(60));
+                try { chatNotice = " " + await _chatSessions.ContinueAsync(chatSnapshot, resumeTimeout.Token); }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    chatNotice = " Аккаунт переключён, но продолжение чатов требует проверки в настройках.";
+                }
+            }
+            return new SwitchResult(true, profile.Name, $"Переключено на «{profile.DisplayName}». Резервная копия: {backupDirectory}{chatNotice}", backupDirectory);
         }
         catch (Exception ex) when (stopped || ex is not OperationCanceledException)
         {

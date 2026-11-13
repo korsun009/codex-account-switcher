@@ -32,7 +32,7 @@ const emptyData: BootstrapData = {
   profiles: [],
   limits: [],
   diagnostics: {
-    backendVersion: '2.1.1',
+    backendVersion: '2.2.0',
     codexHome: null,
     codexShells: 0,
     codexAppServers: 0,
@@ -444,6 +444,23 @@ export default function App() {
           <section className="page-stack">
             <header className="page-header"><div><p className="eyebrow">{t('settings.eyebrow')}</p><h1>{t('settings.title')}</h1></div></header>
             <div className="settings-list">
+              <div className="setting-row"><div className="setting-icon"><Play size={19} /></div><div><strong>{t('settings.continueChats')}</strong><span>{t('settings.continueChatsDescription')}</span></div><input className="chat-resume-toggle" type="checkbox" role="switch" aria-label={t('settings.continueChats')} checked={data.settings.continueActiveChats ?? false} disabled={busyCommand !== null} onChange={(event) => {
+                const enabled = event.target.checked
+                void runCommand('setContinueActiveChats', { enabled }).then((result) => {
+                  if (result) setData((current) => ({ ...current, settings: { ...current.settings, continueActiveChats: enabled } }))
+                })
+              }} /></div>
+              {data.settings.chatSnapshot && <details className="panel">
+                <summary>{t('settings.savedChatStates')} · {formatDateTime(data.settings.chatSnapshot.capturedAt, data.settings.language)}</summary>
+                <p>{t('settings.savedChatStatesDescription')}</p>
+                {data.settings.chatSnapshot.chats.length === 0 && <p>{t('settings.noSavedChatStates')}</p>}
+                {data.settings.chatSnapshot.chats.map((chat) => <div className="setting-row chat-state-row" key={chat.id}><div>
+                  <strong>{chat.title}</strong>
+                  <span>{chat.error || chat.turnStatus === 'failed' ? t('settings.chatFailed') : chat.activeFlags?.length ? t('settings.chatWaiting') : chat.status === 'active' ? t('settings.chatActive') : t('settings.chatSaved')}{chat.unread && ` · ${t('settings.chatUnread')}`}</span>
+                  {chat.continuation && <span>{t(chat.continuation === 'sent' ? 'settings.chatResumed' : chat.continuation === 'skipped' ? 'settings.chatSkipped' : chat.continuation === 'unavailable' ? 'settings.chatUnavailable' : 'settings.chatUncertain')}</span>}
+                  {chat.error && <details><summary>{t('settings.chatError')}</summary><pre className="chat-error-detail">{chat.error}</pre></details>}
+                </div></div>)}
+              </details>}
               <div className="setting-row"><div className="setting-icon"><FolderCog size={19} /></div><div><strong>Codex Home</strong><span>{data.diagnostics.codexHome ?? t('settings.codexHomeMissing')}</span></div><button className="button" onClick={() => void chooseCodexHome()}>{t('common.change')}</button></div>
               <div className="setting-row"><div className="setting-icon"><ShieldCheck size={19} /></div><div><strong>{t('settings.profileProtection')}</strong><span>{t('settings.profileProtectionDescription')}</span></div><span className="status-pill status-pill--ready">{t('common.enabled')}</span></div>
               <div className="setting-row"><div className="setting-icon"><Languages size={19} /></div><div><strong>{t('settings.language')}</strong><span>{t('settings.languageDescription')}</span></div><select aria-label={t('settings.languageAria')} value={data.settings.language} onChange={(event) => {

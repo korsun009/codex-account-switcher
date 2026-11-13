@@ -12,7 +12,7 @@ internal static class LocalSidebarTransfer
     private const string Atoms = "electron-persisted-atom-state";
     private const string Sections = "sidebar-custom-sections-v3";
 
-    private sealed record Identity(string Account, string Owner);
+    private sealed record Identity(string Account, string Owner, string ReadStateKey);
 
     private static Identity? ReadIdentity(byte[]? bytes)
     {
@@ -30,7 +30,8 @@ internal static class LocalSidebarTransfer
                 var claims = JsonNode.Parse(decoded)?["https://api.openai.com/auth"];
                 if ((claims?["chatgpt_user_id"] ?? claims?["user_id"])?.GetValue<string>() is not { Length: > 0 } user) continue;
                 var hash = SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new[] { user, account }));
-                return new Identity(account, Convert.ToHexString(hash).ToLowerInvariant());
+                var readHash = SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new[] { "chatgpt", account, user }));
+                return new Identity(account, Convert.ToHexString(hash).ToLowerInvariant(), Convert.ToHexString(readHash).ToLowerInvariant());
             }
             catch (FormatException) { }
             catch (JsonException) { }
@@ -39,6 +40,31 @@ internal static class LocalSidebarTransfer
     }
 
     public static byte[]? Prepare(byte[] original, byte[]? previousAuth, byte[] targetAuth, string home)
+    {
+        var sidebar = PrepareSidebar(original, previousAuth, targetAuth, home);
+        var state = JsonNode.Parse(sidebar ?? original) as JsonObject;
+        var from = ReadIdentity(previousAuth);
+        var to = ReadIdentity(targetAuth);
+        if (state is null || from is null || to is null || from.ReadStateKey == to.ReadStateKey) return sidebar;
+        if (state["electron-thread-read-state-v1"] is not JsonObject readState ||
+            readState["version"]?.ToString() != "1" ||
+            readState["unreadByIdentity"] is not JsonObject identities ||
+            identities[from.ReadStateKey] is not JsonObject source) return sidebar;
+        var target = identities[to.ReadStateKey]?.DeepClone() as JsonObject ?? new JsonObject();
+        foreach (var (host, unread) in source)
+        {
+            // Codex hashes the local home into this host key. Keep other homes
+            // and remote hosts separate. Empty lists propagate read actions.
+            if (host.StartsWith("local:", StringComparison.Ordinal) &&
+                unread is JsonArray ids && ids.All(id => id is JsonValue value && value.TryGetValue<string>(out _)))
+                target[host] = unread.DeepClone();
+        }
+        if (JsonNode.DeepEquals(identities[to.ReadStateKey], target) || target.Count == 0) return sidebar;
+        identities[to.ReadStateKey] = target;
+        return JsonSerializer.SerializeToUtf8Bytes(state);
+    }
+
+    private static byte[]? PrepareSidebar(byte[] original, byte[]? previousAuth, byte[] targetAuth, string home)
     {
         if (JsonNode.Parse(original) is not JsonObject state) return null;
         var from = ReadIdentity(previousAuth);
@@ -107,6 +133,7 @@ internal static class LocalSidebarTransfer
         {
             if (sourceKey == key || !sourceKey.StartsWith(prefix, StringComparison.Ordinal) || value is not JsonObject source) continue;
             bool outgoing = from?.Owner == owner && sourceKey == prefix + owner;
+            if (outgoing) CopyLegacyUnread(source, target);
             var account = outgoing ? from!.Account : ResolveSectionAccount(source, sourceKey[prefix.Length..]);
             if (account is not null && Map(source, Sections)[account] is JsonObject sectionState)
             {
@@ -126,6 +153,16 @@ internal static class LocalSidebarTransfer
         if (target.Count == 0 || JsonNode.DeepEquals(original, target)) return null;
         state[key] = target;
         return JsonSerializer.SerializeToUtf8Bytes(state);
+    }
+
+    private static void CopyLegacyUnread(JsonObject source, JsonObject target)
+    {
+        const string field = "unread-thread-ids-by-host-v1";
+        if (source[field] is not JsonObject hosts) return;
+        foreach (var (host, value) in hosts)
+            if ((host == "local" || host.StartsWith("local:", StringComparison.Ordinal)) &&
+                value is JsonArray ids && ids.All(id => id is JsonValue item && item.TryGetValue<string>(out _)))
+                Object(target, field)[host] = ids.DeepClone();
     }
 
     private static bool IsLocalProject(string id, JsonNode? node) =>
@@ -164,6 +201,7 @@ internal static class LocalSidebarTransfer
         JsonObject globals, JsonObject atoms, string targetAccount, string home, bool missingOnly = false,
         LocalProjectCatalog? catalog = null)
     {
+        if (!missingOnly) CopyLegacyUnread(sourceAtoms, atoms);
         var projects = new HashSet<string>(StringComparer.Ordinal);
         var eligible = new HashSet<string>(StringComparer.Ordinal);
         var hostKey = "local:" + home;

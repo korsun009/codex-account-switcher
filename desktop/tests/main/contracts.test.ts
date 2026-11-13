@@ -26,7 +26,7 @@ describe('desktop contracts', () => {
 
   it('allows multi-account usage refresh to outlive individual HTTP timeouts', () => {
     expect(backendCommandTimeout('getLimits')).toBeGreaterThanOrEqual(120_000)
-    expect(backendCommandTimeout('switchProfile')).toBeGreaterThan(30_000)
+    expect(backendCommandTimeout('switchProfile')).toBeGreaterThan((90 + 12 + 60 + 30) * 1000)
     expect(backendCommandTimeout('bootstrap')).toBe(30_000)
   })
 })

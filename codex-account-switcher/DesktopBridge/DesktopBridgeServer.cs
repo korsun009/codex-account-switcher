@@ -30,6 +30,7 @@ public sealed class DesktopBridgeServer
         "setCodexHome",
         "setLanguage",
         "setTheme",
+        "setContinueActiveChats",
         "openCodex",
         "openConfig",
         "listRemoteConnections",
@@ -148,6 +149,14 @@ public sealed class DesktopBridgeServer
             return new { language };
         }
 
+        if (command == "setContinueActiveChats")
+        {
+            if (payload is null || !payload.Value.TryGetProperty("enabled", out var enabled) ||
+                enabled.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                throw new ArgumentException("enabled must be a boolean.");
+            _database.SetSetting("continueActiveChats", enabled.GetBoolean() ? "true" : "false");
+            return new { continueActiveChats = enabled.GetBoolean() };
+        }
         if (command == "setTheme")
         {
             var theme = RequiredString(payload, "theme");
@@ -346,7 +355,7 @@ public sealed class DesktopBridgeServer
             !string.IsNullOrWhiteSpace(_environmentVariableReader("CODEX_REMOTE_API_TOKEN", EnvironmentVariableTarget.Process)) ||
             !string.IsNullOrWhiteSpace(_environmentVariableReader("CODEX_REMOTE_API_TOKEN", EnvironmentVariableTarget.User));
         return new DesktopDiagnosticsDto(
-            Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "2.1.1",
+            Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "2.2.0",
             layout?.CodexHome,
             processes.Count > 0 ? 1 : 0,
             appServers,
@@ -358,10 +367,19 @@ public sealed class DesktopBridgeServer
     {
         var language = _database.GetSetting("language");
         var theme = _database.GetSetting("theme");
+        ChatSessionSnapshot? snapshot = null;
+        var layout = ResolveLayout();
+        if (layout is not null)
+        {
+            try { snapshot = new ChatSessionService(layout).ReadSnapshot(); }
+            catch (Exception ex) when (ex is IOException or System.Security.Cryptography.CryptographicException or JsonException) { }
+        }
         return new
         {
             language = language is "en" or "zh" ? language : "ru",
-            theme = theme is "dark" or "light" ? theme : "system"
+            theme = theme is "dark" or "light" ? theme : "system",
+            continueActiveChats = _database.GetSetting("continueActiveChats") == "true",
+            chatSnapshot = snapshot
         };
     }
 

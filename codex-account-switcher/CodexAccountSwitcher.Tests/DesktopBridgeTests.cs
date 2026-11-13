@@ -19,6 +19,20 @@ public sealed class DesktopBridgeTests : IDisposable
     }
 
     [Fact]
+    public async Task ContinuationDefaultsOffAndPersistsOnlyBooleanSettings()
+    {
+        var server = CreateServer();
+        var before = await server.HandleLineAsync("""{"id":"1","command":"getSettings"}""", default);
+        Assert.Contains("\"continueActiveChats\":false", JsonSerializer.Serialize(before.Data));
+        var invalid = await server.HandleLineAsync("""{"id":"2","command":"setContinueActiveChats","payload":{"enabled":"true"}}""", default);
+        Assert.False(invalid.Ok);
+        var changed = await server.HandleLineAsync("""{"id":"3","command":"setContinueActiveChats","payload":{"enabled":true}}""", default);
+        Assert.True(changed.Ok);
+        var after = await CreateServer().HandleLineAsync("""{"id":"4","command":"getSettings"}""", default);
+        Assert.Contains("\"continueActiveChats\":true", JsonSerializer.Serialize(after.Data));
+    }
+
+    [Fact]
     public async Task RejectsMalformedAndUnknownRequests()
     {
         var server = CreateServer();

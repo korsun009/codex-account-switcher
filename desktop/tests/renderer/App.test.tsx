@@ -42,6 +42,21 @@ describe('App', () => {
     window.codexSwitcher = api
   })
 
+  it('keeps continuation off by default and persists an explicit toggle', async () => {
+    const invoke = vi.fn(async (command: string): Promise<BridgeResponse<unknown>> => ({
+      id: 'test', ok: true, error: null,
+      data: command === 'setContinueActiveChats' ? { continueActiveChats: true } : bootstrap
+    })) as unknown as DesktopApi['invoke']
+    window.codexSwitcher = { invoke, selectCodexHome: vi.fn(async () => null), updates }
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /настройки/i }))
+    const toggle = screen.getByRole('switch', { name: /продолжать/i })
+    expect(toggle).not.toBeChecked()
+    fireEvent.click(toggle)
+    await waitFor(() => expect(toggle).toBeChecked())
+    expect(invoke).toHaveBeenCalledWith('setContinueActiveChats', { enabled: true })
+  })
+
   it('shows a clean empty state without seeded personal profiles', async () => {
     render(<App />)
 

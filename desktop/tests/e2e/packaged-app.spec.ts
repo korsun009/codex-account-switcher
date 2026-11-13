@@ -110,6 +110,31 @@ test('checks and downloads a newer package from the explicit E2E feed', async ()
   })
 })
 
+test('shows protected chat snapshots without layout overflow', async () => {
+  test.skip(process.env.CODEX_SWITCHER_CHAT_FIXTURE !== '1', 'Requires the isolated DPAPI fixture')
+  await page.getByRole('button', { name: 'Настройки', exact: true }).click()
+  await page.locator('summary').filter({ hasText: 'Состояния чатов перед переключением' }).click()
+  await expect(page.getByText('Fixture failed chat', { exact: true })).toBeVisible()
+  await expect(page.getByText('Запуск завершился ошибкой', { exact: false })).toBeVisible()
+  await page.getByText('Ошибка', { exact: true }).click()
+  await expect(page.locator('.chat-error-detail')).toContainText('Fixture error')
+  expect(await page.evaluate(() => document.body.scrollWidth > innerWidth)).toBe(false)
+  await page.screenshot({ path: 'test-results/packaged-chat-states.png', fullPage: true })
+})
+
+test('persists the opt-in continuation toggle across a renderer reload', async () => {
+  await page.getByRole('button', { name: 'Настройки', exact: true }).click()
+  const toggle = page.getByRole('switch', { name: /Продолжать активные чаты/ })
+  await expect(toggle).not.toBeChecked()
+  await toggle.click()
+  await expect(toggle).toBeChecked()
+  await page.reload()
+  await page.getByRole('button', { name: 'Настройки', exact: true }).click()
+  await expect(toggle).toBeChecked()
+  await toggle.click()
+  await expect(toggle).not.toBeChecked()
+})
+
 test('switches languages immediately and renders the light theme at supported sizes', async () => {
   await page.getByRole('button', { name: 'Настройки' }).click()
   const settingsSelects = page.locator('.settings-list select')

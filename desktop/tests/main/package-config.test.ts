@@ -21,7 +21,7 @@ describe('release configuration', () => {
   it('keeps the established installer identity for the stable release', () => {
     const config = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8')) as PackageConfig
 
-    expect(config.version).toBe('2.1.1')
+    expect(config.version).toBe('2.2.0')
     expect(config.build.appId).toBe('app.codexaccountswitcher.desktop')
     // UUID v5 generated for the first Electron installer. Never change after publication.
     expect(config.build.nsis.guid).toBe('46496e38-c773-566c-b0c4-a8505306ddae')

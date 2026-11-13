@@ -421,6 +421,18 @@ public sealed class MainForm : Form
             Margin = new Padding(0, 0, 0, 4)
         };
         content.Controls.Add(title);
+        if (_database is not null)
+        {
+            var continueChats = new CheckBox
+            {
+                Text = T("settings.continueChats"), AutoSize = true,
+                Checked = _database.GetSetting("continueActiveChats") == "true",
+                Margin = new Padding(0, 8, 0, 16)
+            };
+            continueChats.CheckedChanged += (_, _) => _database.SetSetting("continueActiveChats", continueChats.Checked ? "true" : "false");
+            content.Controls.Add(continueChats);
+        }
+
 
         var themeBox = new TableLayoutPanel { ColumnCount = 1, RowCount = 5, Height = 224, Margin = new Padding(0, 0, 0, 12) };
         themeBox.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));

@@ -18,6 +18,7 @@ export const backendCommands = [
   'setCodexHome',
   'setLanguage',
   'setTheme',
+  'setContinueActiveChats',
   'openCodex',
   'openConfig',
   'listRemoteConnections',
@@ -73,6 +74,11 @@ export interface BootstrapData {
   settings: {
     language: 'ru' | 'en' | 'zh'
     theme: 'system' | 'dark' | 'light'
+    continueActiveChats?: boolean
+    chatSnapshot?: {
+      capturedAt: string
+      chats: { id: string; title: string; status: string; unread: boolean; activeFlags: string[]; turnStatus: string | null; error: string | null; continuation: string }[]
+    } | null
   }
 }
 
