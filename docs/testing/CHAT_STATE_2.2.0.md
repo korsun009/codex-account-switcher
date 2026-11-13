@@ -20,3 +20,14 @@ The local pipe protocol is version-sensitive: little-endian length-prefixed JSON
 Automated tests cover old/new unread stores, empty read clears, remote isolation, history pagination, unloaded failures, waiting states, changed/completed/already-running turns, ambiguous-send persistence, default-off and persisted settings, capture failure before shutdown, continuation failure after auth commit, and switching with desktop closed.
 
 Native App Tools was verified read-only against installed Codex 26.1106.6628.0. Real account switching and sending continuation to the owner's active chats are deliberately not triggered by automated validation; those require the owner's normal switch after installing the candidate. Tests cannot establish whether old Codex error badges reappear, and this version does not promise that behavior.
+
+## Verified candidate, 2026-11-13
+
+- Backend: 114 tests passed in Release configuration. The unknown/missing runtime-status regression first failed both cases, then passed with the fail-closed check.
+- Frontend: TypeScript check and all 32 unit/component tests passed.
+- Packaged Electron: 6 end-to-end tests passed on x64 and 6 on ia32, in isolated homes and application databases. Includes DPAPI snapshot rendering with a long error message, persisted default-off toggle after reload, sandbox isolation, languages, and layout widths.
+- All 11 release payloads on the project drive matched the SSD build by SHA-256; the output folder contains those files plus SHA256SUMS.txt. MSI ProductVersion and platform templates were checked for both architectures. Backend and app.asar bytes inside both portable ZIPs match the tested unpacked applications. Updater version, installer path and SHA-512 match the universal installer.
+- Gitleaks 8.30.1 and the repository artifact-name policy passed for Git history, current source and packaged artifacts. This is a detection-based scan, not a guarantee about all possible secrets.
+- All five EXE/MSI installers are NotSigned, consistent with earlier releases. No installer was applied over the owner's installation; live account switching, continuation of real active tasks, and applying an automatic update remain owner acceptance checks.
+
+Build source remains in the original project. An SSD staging copy was used after explicit owner authorization because the HDD was saturated. Electron 43.3.0 was supplied from an existing local archive after verification against the package's pinned SHA-256 checksums. Final artifacts and verification evidence were copied back under `Материалы релизов` in the main project folder. No live Codex auth or session files were edited by the tests.
