@@ -50,3 +50,7 @@ Build and contribution details are in the [main README](../../README.md), [CONTR
 ## Encrypted profile transfer
 
 In Settings, choose **Export profiles**, select saved accounts, then enter and confirm a password. Move the `.codexprofiles` file to the other computer and choose **Import profiles** there. Imports add profiles without replacing existing accounts or changing the current Codex login. Keep the password separately; it cannot be recovered. Chats, projects and remote-control settings are not included.
+
+## Encrypted profile transfer
+
+Export selected saved accounts from Settings into a password-protected `.codexprofiles` file, then import it on another computer. Existing profiles and the current login remain intact. Keep the password separately; it cannot be recovered. Chats, projects and remote-control settings are not included.
