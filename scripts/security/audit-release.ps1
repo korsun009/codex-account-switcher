@@ -15,7 +15,7 @@ if (-not $RepositoryRoot) {
 
 $gitleaksVersion = '8.30.1'
 $gitleaksArchiveSha256 = 'D29144DEFF3A68AA93CED33DDDF84B7FDC26070ADD4AA0F4513094C8332AFC4E'
-$sensitiveNamePattern = '(?i)(^|/)(auth\.json|\.env$|\.env\.(?!example$).*|switcher\.db|.*\.pem|.*\.pfx|id_(?:rsa|ecdsa|ed25519)|_account_profiles(?:/|$)|_account_switcher_backups(?:/|$))'
+$sensitiveNamePattern = '(?i)(^|/)(auth\.json|.*\.codexprofiles|\.env$|\.env\.(?!example$).*|switcher\.db|.*\.pem|.*\.pfx|id_(?:rsa|ecdsa|ed25519)|_account_profiles(?:/|$)|_account_switcher_backups(?:/|$))'
 
 function Assert-NoSensitiveNames {
     param([string[]]$Names, [string]$Scope)
