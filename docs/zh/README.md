@@ -40,3 +40,7 @@ Codex Account Switcher 是一款开源 Windows 桌面应用，用于安全切换
 欢迎社区翻译。Fork 本仓库，编辑 [`desktop/src/renderer/src/locales/translations.json`](../../desktop/src/renderer/src/locales/translations.json)，保持所有 key 和 `{{placeholders}}` 一致，运行验证，然后提交 pull request。详细说明见 [TRANSLATIONS.md](../TRANSLATIONS.md)。
 
 构建和贡献说明见 [Main README](../../README.md)、[CONTRIBUTING.md](../../CONTRIBUTING.md) 和 [2.3.0 release notes](../RELEASE_NOTES_2.3.0.md)。
+
+## 加密配置文件传输
+
+在设置中导出选定账户，输入并确认密码。在另一台电脑导入 `.codexprofiles` 文件。导入不会覆盖已有账户或切换当前登录。聊天、项目和远程控制设置不包含在文件中。密码无法恢复。
