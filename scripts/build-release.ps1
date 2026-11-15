@@ -92,7 +92,18 @@ try {
         Invoke-Checked -FailureMessage "TypeScript validation failed." -Command { pnpm typecheck }
         Invoke-Checked -FailureMessage "Electron tests failed." -Command { pnpm test }
     }
-    Invoke-Checked -FailureMessage "Electron packaging failed." -Command { pnpm package:win }
+    Invoke-Checked -FailureMessage "Electron build failed." -Command { pnpm build }
+    Invoke-Checked -FailureMessage "NSIS packaging failed." -Command {
+        pnpm exec electron-builder --win nsis --x64 --ia32 --publish never
+    }
+    # WiX uses one toolset lock. On a slow disk, concurrent MSI builds can
+    # exhaust its retry window; package the already-built architectures serially.
+    Invoke-Checked -FailureMessage "x64 MSI packaging failed." -Command {
+        pnpm exec electron-builder --prepackaged release/win-unpacked --win msi --x64 --publish never
+    }
+    Invoke-Checked -FailureMessage "x86 MSI packaging failed." -Command {
+        pnpm exec electron-builder --prepackaged release/win-ia32-unpacked --win msi --ia32 --publish never
+    }
 } finally {
     Pop-Location
 }
