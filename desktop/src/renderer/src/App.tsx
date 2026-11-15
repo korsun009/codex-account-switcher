@@ -23,6 +23,7 @@ import {
   UserRoundCheck
 } from 'lucide-react'
 import type { BackendCommand, BackupSummary, BootstrapData, BridgeResponse, ProfileSummary, RemoteConnectionSummary, RemoteConnectionTestResult, UpdateState } from '../../shared/contracts'
+import { ProfileTransfer } from './ProfileTransfer'
 import logoUrl from './assets/logo.png'
 import { createTranslator, formatDateTime, type Language, type TranslationKey, type Translator } from './locales/i18n'
 
@@ -32,7 +33,7 @@ const emptyData: BootstrapData = {
   profiles: [],
   limits: [],
   diagnostics: {
-    backendVersion: '2.2.0',
+    backendVersion: '2.3.0',
     codexHome: null,
     codexShells: 0,
     codexAppServers: 0,
@@ -444,6 +445,7 @@ export default function App() {
           <section className="page-stack">
             <header className="page-header"><div><p className="eyebrow">{t('settings.eyebrow')}</p><h1>{t('settings.title')}</h1></div></header>
             <div className="settings-list">
+              <ProfileTransfer profiles={data.profiles} refresh={refresh} t={t} />
               <div className="setting-row"><div className="setting-icon"><Play size={19} /></div><div><strong>{t('settings.continueChats')}</strong><span>{t('settings.continueChatsDescription')}</span></div><input className="chat-resume-toggle" type="checkbox" role="switch" aria-label={t('settings.continueChats')} checked={data.settings.continueActiveChats ?? false} disabled={busyCommand !== null} onChange={(event) => {
                 const enabled = event.target.checked
                 void runCommand('setContinueActiveChats', { enabled }).then((result) => {

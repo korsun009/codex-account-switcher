@@ -25,6 +25,16 @@ public sealed class ProfileCredentialStore
             _fileSystem.FileExists(_layout.ProfileAuthPath(profileName));
     }
 
+    // Export is read-only, including for legacy snapshots: never migrate as a side effect.
+    public byte[] ReadSnapshot(string profileName)
+    {
+        PathSafety.EnsureSafeProfileName(profileName);
+        if (_fileSystem.FileExists(_layout.ProfileEncryptedAuthPath(profileName))) return ReadEncrypted(profileName);
+        var bytes = _fileSystem.ReadAllBytes(_layout.ProfileAuthPath(profileName));
+        try { AuthDocumentValidator.Validate(bytes); return bytes; }
+        catch { CryptographicOperations.ZeroMemory(bytes); throw; }
+    }
+
     public byte[] Read(string profileName)
     {
         PathSafety.EnsureSafeProfileName(profileName);
@@ -63,10 +73,12 @@ public sealed class ProfileCredentialStore
         _fileSystem.WriteAllBytesAtomic(_layout.ProfileEncryptedAuthPath(profileName), protectedData);
 
         var verified = ReadEncrypted(profileName);
-        if (!CryptographicOperations.FixedTimeEquals(authDocument, verified))
+        try
         {
-            throw new InvalidDataException("Проверка зашифрованных учетных данных не пройдена.");
+            if (!CryptographicOperations.FixedTimeEquals(authDocument, verified))
+                throw new InvalidDataException("Credential verification failed.");
         }
+        finally { CryptographicOperations.ZeroMemory(verified); }
     }
 
     public void Delete(string profileName)
@@ -102,7 +114,8 @@ public sealed class ProfileCredentialStore
                 "Сохраненный вход не удалось расшифровать для текущего пользователя Windows.", ex);
         }
 
-        AuthDocumentValidator.Validate(plaintext);
-        return plaintext;
+        try { AuthDocumentValidator.Validate(plaintext); return plaintext; }
+        catch { CryptographicOperations.ZeroMemory(plaintext); throw; }
     }
 }
+

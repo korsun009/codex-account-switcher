@@ -4,7 +4,7 @@ import { app } from 'electron'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
-import type { BackendCommand, BridgeRequest, BridgeResponse } from '../shared/contracts'
+import type { BackendCommand, TransferCommand, BridgeRequest, BridgeResponse } from '../shared/contracts'
 import { backendCommandTimeout } from '../shared/timeouts'
 
 interface PendingRequest {
@@ -17,7 +17,7 @@ export class BackendClient {
   private readonly pending = new Map<string, PendingRequest>()
   private disposed = false
 
-  async invoke<T>(command: BackendCommand, payload?: unknown): Promise<BridgeResponse<T>> {
+  async invoke<T>(command: BackendCommand | TransferCommand, payload?: unknown): Promise<BridgeResponse<T>> {
     this.ensureStarted()
     const id = randomUUID()
     const request: BridgeRequest = { id, command, payload }
@@ -26,7 +26,7 @@ export class BackendClient {
       const timeout = setTimeout(() => {
         this.pending.delete(id)
         resolve({ id, ok: false, data: null, error: 'Backend request timed out.' })
-      }, backendCommandTimeout(command))
+      }, command === 'exportProfiles' || command === 'importProfiles' ? 120_000 : backendCommandTimeout(command))
 
       this.pending.set(id, { resolve: resolve as (response: BridgeResponse) => void, timeout })
       this.child?.stdin.write(`${JSON.stringify(request)}\n`)

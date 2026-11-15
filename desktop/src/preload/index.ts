@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { BackendCommand, BridgeResponse, DesktopApi } from '../shared/contracts'
 import {
+  IPC_EXPORT_PROFILES,
+  IPC_IMPORT_PROFILES,
   IPC_INVOKE,
   IPC_SELECT_CODEX_HOME,
   IPC_UPDATE_CHECK,
@@ -13,6 +15,8 @@ import {
 const api: DesktopApi = Object.freeze({
   invoke: <T>(command: BackendCommand, payload?: unknown): Promise<BridgeResponse<T>> =>
     ipcRenderer.invoke(IPC_INVOKE, command, payload) as Promise<BridgeResponse<T>>,
+  exportProfiles: (names: string[], password: string) => ipcRenderer.invoke(IPC_EXPORT_PROFILES, names, password),
+  importProfiles: (password: string) => ipcRenderer.invoke(IPC_IMPORT_PROFILES, password),
   selectCodexHome: (title?: string) => ipcRenderer.invoke(IPC_SELECT_CODEX_HOME, title),
   updates: Object.freeze({
     get: () => ipcRenderer.invoke(IPC_UPDATE_GET),

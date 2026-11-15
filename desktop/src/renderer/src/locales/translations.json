@@ -189,6 +189,32 @@
       "system": "Как в Windows",
       "dark": "Темная",
       "light": "Светлая"
+    },
+    "transfer": {
+      "title": "Перенос профилей",
+      "description": "Зашифрованный файл для переноса сохранённых входов на другой компьютер.",
+      "export": "Экспорт профилей",
+      "import": "Импорт профилей",
+      "select": "Выбери профили",
+      "savedOnly": "Переносятся сохранённые входы. Текущий вход Codex и чаты не меняются.",
+      "unavailable": "вход недоступен",
+      "empty": "Нет сохранённых профилей.",
+      "passwordHelp": "Задай пароль от 12 символов. Без него восстановить файл невозможно.",
+      "importHelp": "Введи пароль архива, затем выбери файл .codexprofiles. Существующие профили сохранятся.",
+      "password": "Пароль архива",
+      "confirm": "Повтори пароль",
+      "cancel": "Отмена",
+      "next": "Далее",
+      "chooseFile": "Выбрать файл",
+      "working": "Обработка…",
+      "exported": "Экспортировано профилей: {{count}}.",
+      "imported": "Импортировано профилей: {{count}}.",
+      "passwordInvalid": "Пароль должен содержать от 12 до 1024 символов.",
+      "invalidArchive": "Файл повреждён, слишком большой или имеет неподдерживаемый формат.",
+      "authenticationFailed": "Неверный пароль или файл повреждён.",
+      "invalidSelection": "Выбери от 1 до 1000 сохранённых профилей.",
+      "busy": "Уже выполняется операция с профилями. Повтори позже.",
+      "failed": "Не удалось перенести профили. Проверь файл и доступ к папке."
     }
   },
   "en": {
@@ -381,6 +407,32 @@
       "system": "Use Windows setting",
       "dark": "Dark",
       "light": "Light"
+    },
+    "transfer": {
+      "title": "Profile transfer",
+      "description": "An encrypted file to move saved logins to another computer.",
+      "export": "Export profiles",
+      "import": "Import profiles",
+      "select": "Select profiles",
+      "savedOnly": "Only saved logins are transferred. Your current Codex login and chats stay unchanged.",
+      "unavailable": "login unavailable",
+      "empty": "No saved profiles.",
+      "passwordHelp": "Choose a password of at least 12 characters. The file cannot be recovered without it.",
+      "importHelp": "Enter the archive password, then choose a .codexprofiles file. Existing profiles will be preserved.",
+      "password": "Archive password",
+      "confirm": "Confirm password",
+      "cancel": "Cancel",
+      "next": "Next",
+      "chooseFile": "Choose file",
+      "working": "Working…",
+      "exported": "Exported profiles: {{count}}.",
+      "imported": "Imported profiles: {{count}}.",
+      "passwordInvalid": "Password must contain 12 to 1024 characters.",
+      "invalidArchive": "The file is damaged, too large or uses an unsupported format.",
+      "authenticationFailed": "Incorrect password or damaged file.",
+      "invalidSelection": "Select 1 to 1000 saved profiles.",
+      "busy": "Another profile operation is running. Try again later.",
+      "failed": "Profile transfer failed. Check the file and folder access."
     }
   },
   "zh": {
@@ -573,6 +625,33 @@
       "system": "跟随 Windows",
       "dark": "深色",
       "light": "浅色"
+    },
+    "transfer": {
+      "title": "配置文件传输",
+      "description": "通过加密文件将已保存的登录信息传输到另一台电脑。",
+      "export": "导出配置",
+      "import": "导入配置",
+      "select": "选择配置",
+      "savedOnly": "仅传输已保存的登录信息。当前 Codex 登录和聊天保持不变。",
+      "unavailable": "登录不可用",
+      "empty": "没有已保存的配置。",
+      "passwordHelp": "设置至少 12 个字符的密码。没有密码将无法恢复文件。",
+      "importHelp": "输入存档密码，然后选择 .codexprofiles 文件。现有配置将保留。",
+      "password": "存档密码",
+      "confirm": "确认密码",
+      "cancel": "取消",
+      "next": "下一步",
+      "chooseFile": "选择文件",
+      "working": "处理中…",
+      "exported": "已导出配置：{{count}}。",
+      "imported": "已导入配置：{{count}}。",
+      "passwordInvalid": "密码必须包含 12 至 1024 个字符。",
+      "invalidArchive": "文件损坏、过大或格式不受支持。",
+      "authenticationFailed": "密码错误或文件损坏。",
+      "invalidSelection": "请选择 1 至 1000 个已保存的配置。",
+      "busy": "正在执行其他配置操作，请稍后重试。",
+      "failed": "配置传输失败。请检查文件及文件夹访问权限。"
     }
   }
 }
+

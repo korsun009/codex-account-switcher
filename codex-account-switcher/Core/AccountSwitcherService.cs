@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace CodexAccountSwitcher.Core;
 
-public sealed class AccountSwitcherService
+public sealed partial class AccountSwitcherService
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
@@ -62,7 +62,8 @@ public sealed class AccountSwitcherService
 
     public AccountProfile AddProfile(string displayName)
     {
-        EnsureRuntimeDirectories();
+        EnsureBaseRuntimeDirectories();
+        using var heldLock = TryLockProfileChange() ?? throw new InvalidOperationException("transfer.busy");
         var cleanDisplayName = CleanDisplayName(displayName);
         var profiles = LoadProfileDefinitions().ToList();
         var name = CreateUniqueProfileName(cleanDisplayName, profiles);
@@ -89,7 +90,9 @@ public sealed class AccountSwitcherService
 
     public SwitchResult DeleteProfile(string profileName)
     {
-        EnsureRuntimeDirectories();
+        EnsureBaseRuntimeDirectories();
+        using var heldLock = TryLockProfileChange();
+        if (heldLock is null) return ProfileBusy;
         var profiles = LoadProfileDefinitions().ToList();
         var profile = EnsureKnownProfile(profileName, profiles);
         var activeProfile = ReadValidatedActiveProfile(out var activeProfileError);
@@ -114,7 +117,7 @@ public sealed class AccountSwitcherService
 
     public async Task<SwitchResult> SwitchToAsync(string profileName, CancellationToken cancellationToken)
     {
-        EnsureRuntimeDirectories();
+        EnsureBaseRuntimeDirectories();
         using var heldLock = TryLockProfileChange();
         if (heldLock is null) return ProfileBusy;
         EnsureCodexHomeExists();
@@ -224,7 +227,7 @@ public sealed class AccountSwitcherService
 
     public async Task<SwitchResult> CaptureCurrentAuthAsProfileAsync(string profileName, CancellationToken cancellationToken)
     {
-        EnsureRuntimeDirectories();
+        EnsureBaseRuntimeDirectories();
         using var heldLock = TryLockProfileChange();
         if (heldLock is null) return ProfileBusy;
         EnsureCodexHomeExists();
@@ -259,7 +262,7 @@ public sealed class AccountSwitcherService
 
     public async Task<SwitchResult> PrepareCleanLoginAsync(CancellationToken cancellationToken)
     {
-        EnsureRuntimeDirectories();
+        EnsureBaseRuntimeDirectories();
         using var heldLock = TryLockProfileChange();
         if (heldLock is null) return ProfileBusy;
         EnsureCodexHomeExists();
@@ -382,7 +385,7 @@ public sealed class AccountSwitcherService
     public async Task<SwitchResult> RestoreAuthBackupAsync(string backupDirectory, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        EnsureRuntimeDirectories();
+        EnsureBaseRuntimeDirectories();
         using var heldLock = TryLockProfileChange();
         if (heldLock is null) return ProfileBusy;
         PathSafety.EnsurePathInside(backupDirectory, _layout.BackupsDirectory);
@@ -727,3 +730,4 @@ public sealed class AccountSwitcherService
         return candidate;
     }
 }
+

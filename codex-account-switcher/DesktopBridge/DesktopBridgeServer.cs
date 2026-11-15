@@ -11,6 +11,8 @@ public sealed class DesktopBridgeServer
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly HashSet<string> AllowedCommands = new(StringComparer.Ordinal)
     {
+        "exportProfiles",
+        "importProfiles",
         "bootstrap",
         "listProfiles",
         "addProfile",
@@ -89,6 +91,7 @@ public sealed class DesktopBridgeServer
 
     public async Task<DesktopBridgeResponse> HandleLineAsync(string line, CancellationToken cancellationToken)
     {
+        if (line.Length > MaximumRequestLength) return DesktopBridgeResponse.Failure("", "Desktop request is too large.");
         DesktopBridgeRequest? request;
         try
         {
@@ -208,6 +211,36 @@ public sealed class DesktopBridgeServer
         }
 
         var switcher = new AccountSwitcherService(layout, _fileSystem, _processService, _database);
+        if (command is "exportProfiles" or "importProfiles")
+        {
+            try
+            {
+                var path = RequiredString(payload, "path");
+                var password = payload!.Value.GetProperty("password").GetString() ?? "";
+                ProfileTransferArchive.ValidatePassword(password);
+                if (!path.EndsWith(".codexprofiles", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("transfer.invalidArchive");
+                if (command == "exportProfiles")
+                {
+                    var names = payload.Value.GetProperty("names").EnumerateArray().Select(v => v.GetString() ?? "").ToArray();
+                    var archive = switcher.ExportProfiles(names, password);
+                    _fileSystem.WriteAllBytesAtomic(path, archive);
+                    return new { count = names.Length };
+                }
+                using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                if (file.Length is < 58 or > ProfileTransferArchive.MaximumBytes)
+                    throw new InvalidDataException("transfer.invalidArchive");
+                var encrypted = new byte[(int)file.Length];
+                file.ReadExactly(encrypted);
+                return new { count = switcher.ImportProfiles(encrypted, password) };
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                // Never echo parser diagnostics, paths, credentials or passwords to the renderer.
+                throw new InvalidOperationException(ex.Message.StartsWith("transfer.", StringComparison.Ordinal) && ex.Message.Length < 80
+                    ? ex.Message : "transfer.failed");
+            }
+        }
         return command switch
         {
             "bootstrap" => CreateBootstrap(layout, switcher),
@@ -355,7 +388,7 @@ public sealed class DesktopBridgeServer
             !string.IsNullOrWhiteSpace(_environmentVariableReader("CODEX_REMOTE_API_TOKEN", EnvironmentVariableTarget.Process)) ||
             !string.IsNullOrWhiteSpace(_environmentVariableReader("CODEX_REMOTE_API_TOKEN", EnvironmentVariableTarget.User));
         return new DesktopDiagnosticsDto(
-            Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "2.2.0",
+            Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "2.3.0",
             layout?.CodexHome,
             processes.Count > 0 ? 1 : 0,
             appServers,

@@ -84,7 +84,7 @@ export interface BootstrapData {
 
 export interface BridgeRequest {
   id: string
-  command: BackendCommand
+  command: BackendCommand | TransferCommand
   payload?: unknown
 }
 
@@ -127,7 +127,11 @@ export interface UpdateApi {
   openRelease(): Promise<void>
 }
 
+export type TransferCommand = 'exportProfiles' | 'importProfiles'
+export interface TransferResult { canceled: boolean; count?: number; error?: string }
 export interface DesktopApi {
+  exportProfiles(names: string[], password: string): Promise<TransferResult>
+  importProfiles(password: string): Promise<TransferResult>
   invoke<T>(command: BackendCommand, payload?: unknown): Promise<BridgeResponse<T>>
   selectCodexHome(title?: string): Promise<string | null>
   updates: UpdateApi

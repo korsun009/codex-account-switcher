@@ -6,6 +6,8 @@ import { backendCommandTimeout } from '../../src/shared/timeouts'
 describe('desktop contracts', () => {
   it('uses a fixed IPC channel allowlist', () => {
     expect(allowedIpcChannels).toEqual([
+      'switcher:export-profiles',
+      'switcher:import-profiles',
       'switcher:invoke',
       'switcher:select-codex-home',
       'switcher:update:get',
@@ -19,6 +21,8 @@ describe('desktop contracts', () => {
   it('rejects commands outside the backend allowlist', () => {
     expect(isBackendCommand('bootstrap')).toBe(true)
     expect(backendCommands).toEqual(expect.arrayContaining(['createBackup', 'writeInventory', 'ensureFileAuth']))
+    expect(isBackendCommand('exportProfiles')).toBe(false)
+    expect(isBackendCommand('importProfiles')).toBe(false)
     expect(isBackendCommand('readAuthJson')).toBe(false)
     expect(isBackendCommand('../auth.json')).toBe(false)
     expect(new Set(backendCommands).size).toBe(backendCommands.length)

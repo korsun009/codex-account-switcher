@@ -1,3 +1,5 @@
+export const IPC_EXPORT_PROFILES = 'switcher:export-profiles'
+export const IPC_IMPORT_PROFILES = 'switcher:import-profiles'
 export const IPC_INVOKE = 'switcher:invoke'
 export const IPC_SELECT_CODEX_HOME = 'switcher:select-codex-home'
 export const IPC_UPDATE_GET = 'switcher:update:get'
@@ -6,6 +8,8 @@ export const IPC_UPDATE_DOWNLOAD = 'switcher:update:download'
 export const IPC_UPDATE_INSTALL = 'switcher:update:install'
 export const IPC_UPDATE_OPEN_RELEASE = 'switcher:update:open-release'
 export const allowedIpcChannels = [
+  IPC_EXPORT_PROFILES,
+  IPC_IMPORT_PROFILES,
   IPC_INVOKE,
   IPC_SELECT_CODEX_HOME,
   IPC_UPDATE_GET,

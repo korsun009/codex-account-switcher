@@ -264,3 +264,13 @@ select:focus { border-color: #789173; box-shadow: 0 0 0 2px var(--focus-shadow);
 
 .chat-state-row { grid-template-columns: minmax(0, 1fr); }
 .chat-state-row > div { min-width: 0; overflow-wrap: anywhere; }
+
+.transfer-actions { display: flex; gap: 8px; align-items: center; }
+.transfer-dialog { margin: auto; width: min(440px, calc(100vw - 40px)); max-height: 80vh; border: 1px solid var(--border); border-radius: 16px; padding: 24px; color: var(--text); background: var(--surface, #202325); }
+.transfer-dialog::backdrop { background: #0008; }
+.transfer-dialog h2 { margin-top: 0; }
+.transfer-dialog label { display: flex; gap: 8px; margin: 12px 0; }
+.transfer-dialog form label { flex-direction: column; }
+.transfer-dialog input[type=password] { color: var(--text); background: var(--surface-control); border: 1px solid var(--border); width: 100%; padding: 10px; border-radius: 8px; }
+.transfer-dialog > .transfer-actions { justify-content: flex-end; margin-top: 20px; }
+.transfer-profiles { max-height: 240px; overflow: auto; }

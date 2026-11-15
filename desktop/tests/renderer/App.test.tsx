@@ -26,6 +26,8 @@ const updates: DesktopApi['updates'] = {
   openRelease: vi.fn(async () => undefined)
 }
 
+const transferApi = { exportProfiles: vi.fn(async () => ({ canceled: true })), importProfiles: vi.fn(async () => ({ canceled: true })) }
+
 describe('App', () => {
   beforeEach(() => {
     const invoke: DesktopApi['invoke'] = async <T,>(): Promise<BridgeResponse<T>> => ({
@@ -35,6 +37,7 @@ describe('App', () => {
       error: null
     })
     const api: DesktopApi = {
+      ...transferApi,
       invoke,
       selectCodexHome: vi.fn(async () => null),
       updates
@@ -47,7 +50,7 @@ describe('App', () => {
       id: 'test', ok: true, error: null,
       data: command === 'setContinueActiveChats' ? { continueActiveChats: true } : bootstrap
     })) as unknown as DesktopApi['invoke']
-    window.codexSwitcher = { invoke, selectCodexHome: vi.fn(async () => null), updates }
+    window.codexSwitcher = { ...transferApi, invoke, selectCodexHome: vi.fn(async () => null), updates }
     render(<App />)
     fireEvent.click(await screen.findByRole('button', { name: /настройки/i }))
     const toggle = screen.getByRole('switch', { name: /продолжать/i })
@@ -81,7 +84,7 @@ describe('App', () => {
         : bootstrap),
       error: null
     })) as unknown as DesktopApi['invoke']
-    window.codexSwitcher = { invoke, selectCodexHome: vi.fn(async () => null), updates }
+    window.codexSwitcher = { ...transferApi, invoke, selectCodexHome: vi.fn(async () => null), updates }
     render(<App />)
 
     fireEvent.click(await screen.findByRole('button', { name: /резервные копии/i }))
@@ -98,7 +101,7 @@ describe('App', () => {
   it('shows an actionable first-run screen when Codex Home is not found', async () => {
     const withoutHome = { ...bootstrap, diagnostics: { ...bootstrap.diagnostics, codexHome: null, warnings: ['Codex Home не найден.'] } }
     const invoke: DesktopApi['invoke'] = async <T,>(): Promise<BridgeResponse<T>> => ({ id: 'test', ok: true, data: withoutHome as T, error: null })
-    window.codexSwitcher = { invoke, selectCodexHome: vi.fn(async () => null), updates }
+    window.codexSwitcher = { ...transferApi, invoke, selectCodexHome: vi.fn(async () => null), updates }
 
     render(<App />)
 
@@ -114,7 +117,7 @@ describe('App', () => {
       data: command === 'setLanguage' ? { language: 'en' } : bootstrap,
       error: null
     })) as unknown as DesktopApi['invoke']
-    window.codexSwitcher = { invoke, selectCodexHome: vi.fn(async () => null), updates }
+    window.codexSwitcher = { ...transferApi, invoke, selectCodexHome: vi.fn(async () => null), updates }
     render(<App />)
 
     fireEvent.click(await screen.findByRole('button', { name: /настройки/i }))
@@ -143,7 +146,7 @@ describe('App', () => {
       data: command === 'getLimits' ? limits : { ...bootstrap, limits },
       error: null
     })) as unknown as DesktopApi['invoke']
-    window.codexSwitcher = { invoke, selectCodexHome: vi.fn(async () => null), updates }
+    window.codexSwitcher = { ...transferApi, invoke, selectCodexHome: vi.fn(async () => null), updates }
     render(<App />)
 
     fireEvent.click(await screen.findByRole('button', { name: /лимиты codex/i }))
@@ -180,7 +183,7 @@ describe('App', () => {
       data: command === 'listRemoteConnections' ? [] : command === 'createRemoteConnection' ? created : bootstrap,
       error: null
     })) as unknown as DesktopApi['invoke']
-    window.codexSwitcher = { invoke, selectCodexHome: vi.fn(async () => null), updates }
+    window.codexSwitcher = { ...transferApi, invoke, selectCodexHome: vi.fn(async () => null), updates }
     render(<App />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Удаленное управление' }))
