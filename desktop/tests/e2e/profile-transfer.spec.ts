@@ -99,6 +99,18 @@ test('packaged Settings export/import preserves profiles and rejects wrong passw
     await expect(page.getByRole('heading', { name: 'Synthetic transfer (2)', exact: true })).toBeVisible()
     expect(await readFile(join(home, 'auth.json'), 'utf8')).toBe(live)
     await page.screenshot({ path: join(root, 'transfer-result.png') })
+    if (process.env.CODEX_SWITCHER_RUN_REGRESSIONS === '1') {
+      const regressionEnv: NodeJS.ProcessEnv = { ...process.env, ELECTRON_CDP_URL: `http://127.0.0.1:${rendererPort}` }
+      delete regressionEnv.CODEX_SWITCHER_CHAT_FIXTURE
+      delete regressionEnv.CODEX_SWITCHER_E2E_UPDATE_EXPECTED_VERSION
+      const regression = spawn(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', 'packaged-app.spec.ts', '--grep-invert', 'checks and downloads a newer package', '--output', join(root, 'regression-results')], { env: regressionEnv, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+      let regressionLog = ''
+      regression.stdout.on('data', chunk => { regressionLog += String(chunk); process.stdout.write(chunk) })
+      regression.stderr.on('data', chunk => { regressionLog += String(chunk); process.stderr.write(chunk) })
+      const code = await new Promise<number | null>((resolve, reject) => { regression.once('error', reject); regression.once('exit', resolve) })
+      await writeFile(join(root, 'regression.log'), regressionLog)
+      expect(code).toBe(0)
+    }
   } finally {
     await writeFile(join(root, 'process.log'), processLog)
     await inspector?.evaluate("require('electron').app.quit()").catch(() => {})

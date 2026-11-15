@@ -7,15 +7,15 @@ Architecture: C# backend owns credential read, authenticated archive encryption,
 Format: versioned envelope; AES-256-GCM with random 16-byte salt, 12-byte nonce and 16-byte tag. PBKDF2-HMAC-SHA256 fixed 600000 iterations, cryptographic RNG; header authenticated. Password minimum 12 characters and maximum 1024; archive maximum 16 MiB, maximum 1000 profiles, validate all auth documents and names. Reject unsupported format/version and malformed lengths before KDF. Clear plaintext/key buffers in finally. No password logs or argv. Export never sends plaintext credentials to renderer.
 
 Implementation steps:
-- [ ] Baseline dotnet test and frontend test/typecheck.
-- [ ] Add ProfileTransferService + tests: selection, cross-protector roundtrip, wrong password, tamper/header/version/oversize, duplicate names, rollback and no live auth writes; run red then green.
-- [ ] Add bounded backend commands exportProfiles/importProfiles, registered through existing protocol, with explicit lock/conflict handling.
-- [ ] Add dedicated Electron save/open flows that accept no renderer-supplied path; validate sender/payload. Transfer ciphertext only across bridge if needed. No general filesystem exposure.
-- [ ] Add settings row and accessible export/import dialogs in all supported locales; selection then password; confirmation, busy/cancel/error/success, no empty selection or profiles lacking saved credentials.
-- [ ] Add renderer/IPC tests and packaged E2E through Settings -> export -> select -> password -> file, then import -> wrong password -> correct password, check no partial import and existing profiles retained. Use synthetic profiles only.
-- [ ] Independent specification and security/code review; fix findings.
-- [ ] Bump all release version references to 2.3.0, document format and release notes.
-- [ ] Full backend/frontend tests, package x64/x86 portable/MSI/NSIS, verify package metadata and isolated functional behavior; security audit and checksums.
+- [x] Baseline dotnet test and frontend test/typecheck.
+- [x] Add ProfileTransferService + tests: selection, cross-protector roundtrip, wrong password, tamper/header/version/oversize, duplicate names, rollback and no live auth writes; run red then green.
+- [x] Add bounded backend commands exportProfiles/importProfiles, registered through existing protocol, with explicit lock/conflict handling.
+- [x] Add dedicated Electron save/open flows that accept no renderer-supplied path; validate sender/payload. Transfer ciphertext only across bridge if needed. No general filesystem exposure.
+- [x] Add settings row and accessible export/import dialogs in all supported locales; selection then password; confirmation, busy/cancel/error/success, no empty selection or profiles lacking saved credentials.
+- [x] Add renderer/IPC tests and packaged E2E through Settings -> export -> select -> password -> file, then import -> wrong password -> correct password, check no partial import and existing profiles retained. Use synthetic profiles only.
+- [x] Independent specification and security/code review; fix findings.
+- [x] Bump all release version references to 2.3.0, document format and release notes.
+- [x] Full backend/frontend tests, package x64/x86 portable/MSI/NSIS, verify package metadata and isolated functional behavior; security audit and checksums.
 - [ ] User explicitly authorized merge and GitHub release: merge once into main, check gh auth korsun009 before each GitHub write, push main/tag, upload verified release assets and updater metadata, verify latest/assets. Do not install into user's active profile.
 
 Execution uses subagent-driven-development for implementation and independent requesting-code-review before merge. Existing user request authorizes implementation, merge and publication without additional approval gates. No unrelated Codex unread patch or compatibility changes.
