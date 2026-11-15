@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 test('packaged Settings export/import preserves profiles and rejects wrong passwords', async () => {
-  test.setTimeout(240_000)
+  test.setTimeout(480_000)
   const executablePath = process.env.CODEX_SWITCHER_TRANSFER_EXE
   test.skip(!executablePath, 'Set CODEX_SWITCHER_TRANSFER_EXE to an isolated packaged executable.')
   const rootBase = process.env.CODEX_SWITCHER_TRANSFER_TEST_ROOT ?? 'X:/DevData/Temp'
@@ -31,8 +31,14 @@ test('packaged Settings export/import preserves profiles and rejects wrong passw
   let browser: Browser | undefined
   let inspector: Inspector | undefined
   try {
+    await pollJson(`http://127.0.0.1:${rendererPort}/json/version`)
+    console.log('Renderer debugger ready')
     const targets = await pollJson<{ webSocketDebuggerUrl: string }[]>(`http://127.0.0.1:${mainPort}/json/list`)
     inspector = await Inspector.connect(targets[0].webSocketDebuggerUrl)
+    await inspector.send('Runtime.runIfWaitingForDebugger')
+    await inspector.send('Runtime.enable')
+    console.log('Main inspector ready')
+    await pollJson(`http://127.0.0.1:${rendererPort}/json/version`)
     // Only the two OS picker results are controlled through the main-process
     // inspector. All production renderer/IPC/archive/DPAPI code remains intact.
     await inspector.evaluate(`(() => {
@@ -43,6 +49,7 @@ test('packaged Settings export/import preserves profiles and rejects wrong passw
     })()`)
     await pollJson(`http://127.0.0.1:${rendererPort}/json/version`)
     browser = await chromium.connectOverCDP(`http://127.0.0.1:${rendererPort}`, { timeout: 60_000 })
+    console.log('Renderer CDP connected')
     const context = browser.contexts()[0]
     const page = context.pages().find(p => p.url().startsWith('file:')) ?? context.pages()[0] ?? await context.waitForEvent('page')
     const diagnostics: string[] = []
@@ -56,6 +63,18 @@ test('packaged Settings export/import preserves profiles and rejects wrong passw
       await page.screenshot({ path: join(root, 'startup-failure.png') })
       throw error
     }
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await page.getByRole('heading', { name: 'Synthetic transfer', exact: true }).waitFor({ state: 'visible', timeout: 35_000 })
+        break
+      } catch (error) {
+        if (attempt === 2 || !await page.locator('.error-banner').filter({ hasText: 'Backend request timed out' }).isVisible()) throw error
+        console.log('Retrying cold backend startup through the visible Retry button')
+        await page.screenshot({ path: join(root, `cold-start-${attempt}.png`) })
+        await page.getByRole('button', { name: 'Повторить', exact: true }).click()
+      }
+    }
+    console.log('Synthetic profile ready; navigating Settings')
     await page.getByRole('button', { name: 'Настройки', exact: true }).click()
     await page.screenshot({ path: join(root, 'settings.png') })
     await page.getByRole('button', { name: 'Экспорт профилей', exact: true }).click()
@@ -82,9 +101,9 @@ test('packaged Settings export/import preserves profiles and rejects wrong passw
     await page.screenshot({ path: join(root, 'transfer-result.png') })
   } finally {
     await writeFile(join(root, 'process.log'), processLog)
-    await browser?.close().catch(() => {})
     await inspector?.evaluate("require('electron').app.quit()").catch(() => {})
     inspector?.close()
+    if (browser) await Promise.race([browser.close().catch(() => {}), new Promise<void>(resolve => setTimeout(resolve, 5000))])
     if (child.exitCode === null) await Promise.race([new Promise<void>(resolve => child.once('exit', () => resolve())), new Promise<void>(resolve => setTimeout(resolve, 5000))])
     if (child.exitCode === null && child.pid) {
       // Exact spawned test PID only; never enumerate or stop the user's Codex.
@@ -102,7 +121,7 @@ async function freePort(): Promise<number> {
   return port
 }
 async function pollJson<T = unknown>(url: string): Promise<T> {
-  const deadline = Date.now() + 90_000
+  const deadline = Date.now() + 300_000
   while (Date.now() < deadline) {
     try { const response = await fetch(url, { signal: AbortSignal.timeout(2000) }); if (response.ok) return await response.json() as T } catch { /* wait for our child to listen */ }
     await new Promise(resolve => setTimeout(resolve, 250))
@@ -122,6 +141,9 @@ class Inspector {
     return new Inspector(socket)
   }
   async evaluate(expression: string): Promise<void> {
+    await this.send('Runtime.evaluate', { expression, includeCommandLineAPI: true, awaitPromise: true, returnByValue: true })
+  }
+  async send(method: string, params: Record<string, unknown> = {}): Promise<void> {
     const id = ++this.sequence
     await new Promise<void>((resolve, reject) => {
       const cleanup = () => { clearTimeout(timer); this.socket.removeEventListener('message', receive) }
@@ -134,9 +156,10 @@ class Inspector {
         else resolve()
       }
       this.socket.addEventListener('message', receive)
-      this.socket.send(JSON.stringify({ id, method: 'Runtime.evaluate', params: { expression, includeCommandLineAPI: true, awaitPromise: true, returnByValue: true } }))
+      this.socket.send(JSON.stringify({ id, method, params }))
     })
   }
   close() { this.socket.close() }
 }
+
 

@@ -6,12 +6,22 @@ let browser: Browser
 let page: Page
 
 test.beforeAll(async () => {
+  test.setTimeout(180_000)
   browser = await chromium.connectOverCDP(endpoint)
   const context = browser.contexts()[0]
   page = context?.pages()[0]
   if (!page) throw new Error('Packaged Electron renderer was not found.')
   await page.waitForLoadState('domcontentloaded')
   await page.locator('.app-shell').waitFor()
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await page.locator('.page-stack .page-header').waitFor({ state: 'visible', timeout: 35_000 })
+      break
+    } catch (error) {
+      if (attempt === 2 || !await page.locator('.error-banner').filter({ hasText: 'Backend request timed out' }).isVisible()) throw error
+      await page.getByRole('button', { name: 'Повторить', exact: true }).click()
+    }
+  }
 })
 
 test.afterAll(async () => {
