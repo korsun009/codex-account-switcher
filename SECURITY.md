@@ -10,6 +10,7 @@ Never commit or upload:
 - `.codex\_account_profiles`
 - `.codex\_account_switcher_backups`
 - local SQLite databases
+- exported `.codexprofiles` files (even encrypted)
 
 ## Scope
 
@@ -24,3 +25,9 @@ Open a GitHub issue and include:
 - whether you used MSI or portable
 - what action failed
 - log text from the app, with tokens removed
+
+## Portable profile archives
+
+Profile exports contain saved sign-ins and names, encrypted together with a user-supplied password. Treat the file and password as account-access material and send them over separate channels. There is no password recovery. Exported tokens may expire or be revoked; import does not guarantee that the provider will accept an expired login.
+
+Import stores credentials under the destination Windows user protection and does not activate an account or replace the shared Codex home. Existing profiles remain intact. Chat/project files, remote API settings, backups and chat-state snapshots are outside the archive scope.
