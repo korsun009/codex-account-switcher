@@ -1,3 +1,4 @@
+#requires -Version 7.4
 [CmdletBinding()]
 param(
     [string]$StageRoot = (Join-Path $env:SystemDrive ("codex-build\stage-" + (Get-Date -Format "yyyyMMdd-HHmmss"))),
@@ -50,6 +51,19 @@ function Invoke-Checked {
     if ($LASTEXITCODE -ne 0) {
         throw $FailureMessage
     }
+}
+
+$releaseHashes = @{}
+function Get-ReleaseSha256 {
+    param([Parameter(Mandatory)] [string]$Path)
+    if ($releaseHashes.ContainsKey($Path)) { return $releaseHashes[$Path] }
+    # Large sequential reads avoid thousands of small I/O requests on HDD stages.
+    $stream = [IO.FileStream]::new($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read,
+        [IO.FileShare]::Read, 8388608, [IO.FileOptions]::SequentialScan)
+    try { $digest = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($stream)) }
+    finally { $stream.Dispose() }
+    $releaseHashes[$Path] = $digest
+    return $digest
 }
 
 $backendSource = Join-Path $root "codex-account-switcher"
@@ -199,8 +213,8 @@ foreach ($name in $releaseAssetNames) {
 
 $checksumPath = Join-Path $output "SHA256SUMS.txt"
 $checksumLines = $publishedAssets | Sort-Object { Split-Path $_ -Leaf } | ForEach-Object {
-    $hash = Get-FileHash -LiteralPath $_ -Algorithm SHA256
-    "$($hash.Hash.ToLowerInvariant())  $(Split-Path $_ -Leaf)"
+    $digest = Get-ReleaseSha256 -Path $_
+    "$($digest.ToLowerInvariant())  $(Split-Path $_ -Leaf)"
 }
 [IO.File]::WriteAllLines($checksumPath, $checksumLines, [Text.UTF8Encoding]::new($false))
 $publishedAssets += $checksumPath
@@ -211,10 +225,10 @@ $publishedAssets += $checksumPath
 
 [pscustomobject]@{
     Assets = @($publishedAssets | ForEach-Object {
-        $hash = Get-FileHash -LiteralPath $_ -Algorithm SHA256
+        $digest = Get-ReleaseSha256 -Path $_
         [pscustomobject]@{
             File = $_
-            Sha256 = $hash.Hash
+            Sha256 = $digest
         }
     })
     Authenticode = if ($invalidSignatures.Count -eq 0) { "Valid" } else { "NotSigned" }
