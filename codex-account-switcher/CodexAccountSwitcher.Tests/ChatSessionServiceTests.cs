@@ -44,6 +44,9 @@ public sealed class ChatSessionServiceTests
         {
             if (tool == "list_threads")
             {
+                // Codex accepts an omitted optional cursor, but rejects JSON null.
+                if (Pages == 0) Assert.False(arguments.ContainsKey("cursor"));
+                else Assert.Equal("page2", arguments["cursor"]!.GetValue<string>());
                 Pages++;
                 return Task.FromResult(JsonNode.Parse(Pages == 1
                     ? """{"threads":[{"id":"error","kind":"codex","hostId":"local","status":"notLoaded","isUnread":false},{"id":"remote","kind":"codex","hostId":"ssh","status":"active"}],"nextCursor":"page2"}"""

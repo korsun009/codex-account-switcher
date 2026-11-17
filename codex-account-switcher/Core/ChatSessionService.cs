@@ -65,11 +65,14 @@ public sealed class ChatSessionService : IChatSessionService
         string? cursor = null;
         do
         {
-            var page = await _client.CallAsync(caller, "list_threads", new JsonObject
+            var arguments = new JsonObject
             {
                 ["mode"] = "history", ["source"] = "codex", ["hostId"] = "local",
-                ["archived"] = false, ["limit"] = 50, ["cursor"] = cursor
-            }, cancellationToken);
+                ["archived"] = false, ["limit"] = 50
+            };
+            // Optional cursors must be omitted on the first page: Codex rejects JSON null.
+            if (cursor is not null) arguments["cursor"] = cursor;
+            var page = await _client.CallAsync(caller, "list_threads", arguments, cancellationToken);
             if (page["threads"] is not JsonArray threads) throw new IOException("Codex вернул неподдерживаемый список чатов.");
             var localThreads = threads.OfType<JsonObject>().Where(thread =>
                 Text(thread["kind"]) == "codex" && Text(thread["hostId"]) == "local" &&

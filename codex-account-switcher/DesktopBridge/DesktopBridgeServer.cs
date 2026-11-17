@@ -388,7 +388,7 @@ public sealed class DesktopBridgeServer
             !string.IsNullOrWhiteSpace(_environmentVariableReader("CODEX_REMOTE_API_TOKEN", EnvironmentVariableTarget.Process)) ||
             !string.IsNullOrWhiteSpace(_environmentVariableReader("CODEX_REMOTE_API_TOKEN", EnvironmentVariableTarget.User));
         return new DesktopDiagnosticsDto(
-            Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "2.3.0",
+            Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "2.3.1",
             layout?.CodexHome,
             processes.Count > 0 ? 1 : 0,
             appServers,
